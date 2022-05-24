@@ -143,7 +143,6 @@ jailbreakObtainAllItems = () => {
         {Name: "CollegeDunce", Group: "Hat"},
         {Name: "Ribbons2", Group: "HairAccessory3"},
         {Name: "Ribbons2", Group: "HairAccessory1"},
-        {Name: "FullLatexSuitWand", Group: "ItemVulva"},
         {Name: "StraponPanties", Group: "ItemPelvis"},
         {Name: "Pillory", Group: "ItemArms"},
         {Name: "SpankingToysTennisRacket", Group: "ItemHands"},
@@ -151,6 +150,7 @@ jailbreakObtainAllItems = () => {
         {Name: "ChloroformCloth", Group: "ItemMouth2"},
         {Name: "ChloroformCloth", Group: "ItemMouth3"},
         {Name: "WoodenPaddle", Group: "ItemMisc"},
+        {Name: "SpankingToys", Group: "ItemHands"},
     ];
 
     let items = Asset.filter(asset => asset.Value > 0).map(asset => ({Name: asset.Name, Group: asset.Group.Name}));
@@ -438,8 +438,8 @@ restorePlayerAppearance = function(player) {
                     asset[property] = packedAsset[property];
                 }
             }
+            appearance.push(asset);
         }
-        appearance.push(asset);
     }
     player.Appearance = appearance;
     syncPlayer(player);
