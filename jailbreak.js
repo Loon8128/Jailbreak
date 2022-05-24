@@ -1,13 +1,13 @@
 jailbreak = {
     author: 'Loon8128',
-    version: '1.0',
-    club_version: 'R80',
+    version: '1.1',
+    targetVersion: 'R80',
 
     reload: () => {
         let n = document.createElement('script');
         n.setAttribute('language', 'JavaScript');
         n.setAttribute('crossorigin', 'anonymous');
-        n.setAttribute('src', 'https://raw.githubusercontent.com/Loon8128/Jailbreak/main/jailbreak.js?_=' + Date.now());
+        n.setAttribute('src', 'https://loon8128.github.io/Jailbreak/jailbreak.js?_=' + Date.now());
         n.onload = () => n.remove();
         document.head.appendChild(n);
     }
@@ -25,7 +25,7 @@ hook = function(f, g) {
     }
     window[f.name] = g;
     window[f.name].delegate = f;
-}
+};
 
 /**
  * Rewrites (or patches) a given function by string replacement
@@ -52,7 +52,7 @@ rewrite = function(f, patches) {
         console.error(`Error ${e} patching ${f.name}, new source:\n${src}`);
     }
     window[original.name].delegate = original;
-}
+};
 
 /**
  * Removes the hook, or patch, for a given function.
@@ -64,20 +64,22 @@ unhook = function(f) {
     } else {
         console.log(`Function ${f.name} is not hooked or patched`);
     }
-}
-
-const HTML_ESCAPE_ENTITIES = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;',
-    '/': '&#x2F;',
-    '`': '&#x60;',
-    '=': '&#x3D;'
 };
 
-escapeHtml = text => String(text).replace(/[\&<>"'`=\/]/g, s => HTML_ESCAPE_ENTITIES[s]);
+escapeHtml = (() => {
+    const HTML_ESCAPE_ENTITIES = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;',
+        '/': '&#x2F;',
+        '`': '&#x60;',
+        '=': '&#x3D;'
+    };
+    
+    return text => String(text).replace(/[\&<>"'`=\/]/g, s => HTML_ESCAPE_ENTITIES[s]);
+})();
 
 // Opens a new tab, with some plain text html, good for large copy-paste operations
 openAsPlainText = function(lines) {
@@ -98,58 +100,59 @@ hook(LoginStableItems, () => {});
 hook(LoginMaidItems, () => {});
 hook(LoginAsylumItems, () => {});
 
-const SPECIAL_ITEMS = [
-    {Name: "MistressGloves", Group: "Gloves"},
-    {Name: "MistressBoots", Group: "Shoes"},
-    {Name: "MistressTop", Group: "Cloth"},
-    {Name: "MistressBottom", Group: "ClothLower"},
-    {Name: "MistressPadlock", Group: "ItemMisc"},
-    {Name: "MistressPadlockKey", Group: "ItemMisc"},
-    {Name: "MistressTimerPadlock", Group: "ItemMisc"},
-    {Name: "DeluxeBoots", Group: "Shoes"},
-    {Name: "HarnessPonyBits", Group: "ItemMouth"},
-    {Name: "HarnessPonyBits", Group: "ItemMouth2"},
-    {Name: "HarnessPonyBits", Group: "ItemMouth3"},
-    {Name: "PonyBoots", Group: "Shoes"},
-    {Name: "PonyBoots", Group: "ItemBoots"},
-    {Name: "PonyHood", Group: "ItemHood"},
-    {Name: "HoofMittens", Group: "ItemHands"},
-    {Name: "MaidOutfit1", Group: "Cloth"},
-    {Name: "MaidOutfit2", Group: "Cloth"},
-    {Name: "MaidHairband1", Group: "Cloth"},
-    {Name: "MaidApron1", Group: "Cloth"},
-    {Name: "MaidHairband1", Group: "Hat"},
-    {Name: "ServingTray", Group: "ItemMisc"},
-    {Name: "DusterGag", Group: "ItemMouth"},
-    {Name: "MedicalBedRestraints", Group: "ItemArms"},
-    {Name: "MedicalBedRestraints", Group: "ItemLegs"},
-    {Name: "MedicalBedRestraints", Group: "ItemFeet"},
-    {Name: "Camera1", Group: "ClothAccessory"},
-    {Name: "SpankingToysGavel", Group: "ItemHands"},
-    {Name: "SpankingToysLongDuster", Group: "ItemHands"},
-    {Name: "LeatherCuffs", Group: "ItemArms"},
-    {Name: "LeatherCuffsKey", Group: "ItemArms"},
-    {Name: "SpankingToysBaguette", Group: "ItemHands"},
-    {Name: "PandoraPadlock", Group: "ItemMisc"},
-    {Name: "PandoraPadlockKey", Group: "ItemMisc"},
-    {Name: "CollegeOutfit1", Group: "Cloth"},
-    {Name: "NurseUniform", Group: "Cloth"},
-    {Name: "CollegeSkirt", Group: "ClothLower"},
-    {Name: "NurseCap", Group: "Hat"},
-    {Name: "CollegeDunce", Group: "Hat"},
-    {Name: "Ribbons2", Group: "HairAccessory3"},
-    {Name: "Ribbons2", Group: "HairAccessory1"},
-    {Name: "FullLatexSuitWand", Group: "ItemVulva"},
-    {Name: "StraponPanties", Group: "ItemPelvis"},
-    {Name: "Pillory", Group: "ItemArms"},
-    {Name: "SpankingToysTennisRacket", Group: "ItemHands"},
-    {Name: "SpankingToysRainbowWand", Group: "ItemHands"},
-    {Name: "ChloroformCloth", Group: "ItemMouth2"},
-    {Name: "ChloroformCloth", Group: "ItemMouth3"},
-    {Name: "WoodenPaddle", Group: "ItemMisc"},
-];
-
 jailbreakObtainAllItems = () => {
+
+    const SPECIAL_ITEMS = [
+        {Name: "MistressGloves", Group: "Gloves"},
+        {Name: "MistressBoots", Group: "Shoes"},
+        {Name: "MistressTop", Group: "Cloth"},
+        {Name: "MistressBottom", Group: "ClothLower"},
+        {Name: "MistressPadlock", Group: "ItemMisc"},
+        {Name: "MistressPadlockKey", Group: "ItemMisc"},
+        {Name: "MistressTimerPadlock", Group: "ItemMisc"},
+        {Name: "DeluxeBoots", Group: "Shoes"},
+        {Name: "HarnessPonyBits", Group: "ItemMouth"},
+        {Name: "HarnessPonyBits", Group: "ItemMouth2"},
+        {Name: "HarnessPonyBits", Group: "ItemMouth3"},
+        {Name: "PonyBoots", Group: "Shoes"},
+        {Name: "PonyBoots", Group: "ItemBoots"},
+        {Name: "PonyHood", Group: "ItemHood"},
+        {Name: "HoofMittens", Group: "ItemHands"},
+        {Name: "MaidOutfit1", Group: "Cloth"},
+        {Name: "MaidOutfit2", Group: "Cloth"},
+        {Name: "MaidHairband1", Group: "Cloth"},
+        {Name: "MaidApron1", Group: "Cloth"},
+        {Name: "MaidHairband1", Group: "Hat"},
+        {Name: "ServingTray", Group: "ItemMisc"},
+        {Name: "DusterGag", Group: "ItemMouth"},
+        {Name: "MedicalBedRestraints", Group: "ItemArms"},
+        {Name: "MedicalBedRestraints", Group: "ItemLegs"},
+        {Name: "MedicalBedRestraints", Group: "ItemFeet"},
+        {Name: "Camera1", Group: "ClothAccessory"},
+        {Name: "SpankingToysGavel", Group: "ItemHands"},
+        {Name: "SpankingToysLongDuster", Group: "ItemHands"},
+        {Name: "LeatherCuffs", Group: "ItemArms"},
+        {Name: "LeatherCuffsKey", Group: "ItemArms"},
+        {Name: "SpankingToysBaguette", Group: "ItemHands"},
+        {Name: "PandoraPadlock", Group: "ItemMisc"},
+        {Name: "PandoraPadlockKey", Group: "ItemMisc"},
+        {Name: "CollegeOutfit1", Group: "Cloth"},
+        {Name: "NurseUniform", Group: "Cloth"},
+        {Name: "CollegeSkirt", Group: "ClothLower"},
+        {Name: "NurseCap", Group: "Hat"},
+        {Name: "CollegeDunce", Group: "Hat"},
+        {Name: "Ribbons2", Group: "HairAccessory3"},
+        {Name: "Ribbons2", Group: "HairAccessory1"},
+        {Name: "FullLatexSuitWand", Group: "ItemVulva"},
+        {Name: "StraponPanties", Group: "ItemPelvis"},
+        {Name: "Pillory", Group: "ItemArms"},
+        {Name: "SpankingToysTennisRacket", Group: "ItemHands"},
+        {Name: "SpankingToysRainbowWand", Group: "ItemHands"},
+        {Name: "ChloroformCloth", Group: "ItemMouth2"},
+        {Name: "ChloroformCloth", Group: "ItemMouth3"},
+        {Name: "WoodenPaddle", Group: "ItemMisc"},
+    ];
+
     let items = Asset.filter(asset => asset.Value > 0).map(asset => ({Name: asset.Name, Group: asset.Group.Name}));
     SPECIAL_ITEMS.forEach(asset => items.push(asset));
     ShopSellExceptions.forEach(asset => items.push(asset));
@@ -182,7 +185,7 @@ hook(LoginResponse, function(data) {
         'Pandora/Underground/Entrance'
     ];
     const specialBackgroundTag = 'Special';
-    const addedBackgroundTags = ['Asylum', SPECIAL_BACKGROUND_TAG];
+    const addedBackgroundTags = ['Asylum', specialBackgroundTag];
     
     // Pandora backgrounds
     for (let i = 0; i < 6; i++) {
@@ -217,7 +220,7 @@ hook(AsylumEntranceCanWander, () => true);
 
 
 // FEATURE: Allow taking photos anywhere
-hook(ChatRoomCanTakePhotos, () => true);
+hook(DialogCanTakePhotos, () => true);
 
 
 // FEATURE: Allow clicking on the appearance button in chat rooms at any time, even if it is greyed out due to restraints
@@ -269,8 +272,6 @@ hook(ChatRoomStatusUpdate, status => {
 });
 
 // Borrowed from BCX and it's silly drawing methods
-const ICON_BCX_CROSS = `m7.3532 5.3725 10.98 19.412-10.98 19.803h15.294l2.3528-5.4898c0.78426 1.8299 1.5685 3.6599 2.3528 5.4898h15.294l-10.98-19.803c3.6599-6.4706 7.3197-12.941 10.98-19.412h-15.294l-2.3528 5.4898-2.3528-5.4898z`;
-
 function drawIcon(ctx, icon, x, y, width, height, baseSize, alpha, lineWidth, fillColor, strokeColor = 'black') {
     ctx.save();
     ctx.globalAlpha = alpha;
@@ -285,24 +286,28 @@ function drawIcon(ctx, icon, x, y, width, height, baseSize, alpha, lineWidth, fi
     ctx.restore();
 };
 
-let lastKnownBCXStatus = null;
-let lastBCXStatusTimeoutId = null;
 
-forceCheckBCXChatIndicator = function() {
-    if (Player.Status !== lastKnownBCXStatus) {
-        clearTimeout(lastBCXStatusTimeoutId);
-        checkBCXChatIndicator();
+// FEATURE: Interact with BCX typing indicator messages
+(() => {
+    let lastKnownBCXStatus = null;
+    let lastBCXStatusTimeoutId = null;
+
+    forceCheckBCXChatIndicator = function() {
+        if (Player.Status !== lastKnownBCXStatus) {
+            clearTimeout(lastBCXStatusTimeoutId);
+            checkBCXChatIndicator();
+        }
     }
-}
 
-checkBCXChatIndicator = function() {
-    if (Player.Status !== lastKnownBCXStatus) {
-        lastKnownBCXStatus = Player.Status;
-        sendBCXMessage('ChatRoomStatusEvent', {Type: lastKnownBCXStatus === null ? 'None' : 'Typing', Target: null});
+    checkBCXChatIndicator = function() {
+        if (Player.Status !== lastKnownBCXStatus) {
+            lastKnownBCXStatus = Player.Status;
+            sendBCXMessage('ChatRoomStatusEvent', {Type: lastKnownBCXStatus === null ? 'None' : 'Typing', Target: null});
+        }
+        lastBCXStatusTimeoutId = setTimeout(checkBCXChatIndicator, 3000);
     }
     lastBCXStatusTimeoutId = setTimeout(checkBCXChatIndicator, 3000);
-}
-lastBCXStatusTimeoutId = setTimeout(checkBCXChatIndicator, 3000);
+})();
 
 sendBCXHello = () => sendBCXMessage('hello', {version: '☠️', request: false, effects: {}, typingIndicatorEnable: true});
 sendBCXGoodbye = () => sendBCXMessage('goodbye', {});
@@ -355,6 +360,7 @@ hook(ChatRoomDrawCharacterOverlay, function(character, x, y, zoom, index) {
     ChatRoomDrawCharacterOverlay.delegate(character, x, y, zoom, index);
 
     if (typeof character.bcxEnabled !== 'undefined' && character.bcxEnabled) {
+        const ICON_BCX_CROSS = `m7.3532 5.3725 10.98 19.412-10.98 19.803h15.294l2.3528-5.4898c0.78426 1.8299 1.5685 3.6599 2.3528 5.4898h15.294l-10.98-19.803c3.6599-6.4706 7.3197-12.941 10.98-19.412h-15.294l-2.3528 5.4898-2.3528-5.4898z`;
         drawIcon(MainCanvas, ICON_BCX_CROSS, x + 275 * zoom, y, 50 * zoom, 50 * zoom, 50, 0.7, 3, "#6e6eff")
     }
 });
@@ -393,13 +399,13 @@ savePlayerAppearance = function(player) {
     for (let asset of player.Appearance) {
 
         packed.push([
-            ASSET_INDEX.indexOf(asset.Asset.Name + ',' + asset.Asset.Group.Name),
+            asset.Asset.Name,
+            asset.Asset.Group.Name,
             asset.Color === undefined ? -1 : (asset.Color === 'Default' ? -2 : asset.Color),
             asset.Property === undefined ? -1 : asset.Property,
             asset.Difficulty === undefined || asset.Difficulty === 0 ? -1 : asset.Difficulty,
         ]);
     }
-    console.log(packed);
 
     let compressed = LZString.compressToBase64(JSON.stringify(packed));
     console.log(`Compressed to ${compressed.length} bytes`);
@@ -518,3 +524,5 @@ exportChat = function() {
     }
     openAsPlainText(lines);
 }
+
+console.log(`Loaded Jailbreak v${jailbreak.version} for BC ${jailbreak.targetVersion} by ${jailbreak.author}`);
