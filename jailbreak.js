@@ -1,6 +1,6 @@
 jailbreak = {
     author: 'Loon8128',
-    version: '1.3',
+    version: '1.4',
     targetVersion: 'R80',
 
     reload: () => {
@@ -525,6 +525,8 @@ jailbreak.actors.layerPriority = (() => {
 
     let actors = {};
 
+    ElementCreateInput(layerPriorityId, 'number', '', '20');
+
     // 'commit changes' button
     let layerButton = {
         isTargeted: () => MouseIn(160, 946, 52, 52),
@@ -534,11 +536,14 @@ jailbreak.actors.layerPriority = (() => {
     // numerical input for the layer
     let layerInputLastItem = null;
     let layerInput = {
+        element: document.getElementById(layerPriorityId),
         render: () => {
-            ElementCreateInput(layerPriorityId, 'number', '', '20');
+            layerInput.element.style.display = 'inline';
             ElementPosition(layerPriorityId, 10 + 150/2, 940 + 50/2, 150);
         },
-        unrender: () => ElementPosition(layerPriorityId, -1000, -1000, 0),
+        unrender: () => {
+            layerInput.element.style.display = 'none';
+        },
 
         setDefault: (player, item) => {
             if (!layerInputLastItem || layerInputLastItem !== item) {
@@ -547,7 +552,9 @@ jailbreak.actors.layerPriority = (() => {
             }
             layerInputLastItem = item;
         },
-    }
+    };
+
+    layerInput.unrender();
 
     function renderUI(player, item) {
         layerButton.render();
@@ -601,6 +608,7 @@ jailbreak.actors.layerPriority = (() => {
 
     actors.preDialogLeave = () => {
         layerInputLastItem = null;
+        unrenderUI();
     };
 
     actors.preDrawItemMenu = (...args) => {
