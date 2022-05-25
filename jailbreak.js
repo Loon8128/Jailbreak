@@ -1,6 +1,6 @@
 jailbreak = {
     author: 'Loon8128',
-    version: '1.1',
+    version: '1.2',
     targetVersion: 'R80',
 
     reload: () => {
@@ -10,7 +10,9 @@ jailbreak = {
         n.setAttribute('src', 'https://loon8128.github.io/Jailbreak/jailbreak.js?_=' + Date.now());
         n.onload = () => n.remove();
         document.head.appendChild(n);
-    }
+    },
+
+    actors: {}
 };
 
 /**
@@ -168,13 +170,6 @@ jailbreakCheckForMissingItems = () => {
         .filter(a => !(a.Group.Category === 'Appearance' && a.Value === 0)); // These are 'Default' clothing items
 };
 
-hook(LoginResponse, function(data) {
-    LoginResponse.delegate(data);
-    if (typeof data === 'object' && data.Name != null && data.AccountName != null) {
-        jailbreakObtainAllItems();
-    }
-});
-
 
 // FEATURE: Allow player to use all backgrounds, including identifying them with a 'custom' tag.
 (() => {
@@ -231,64 +226,65 @@ rewrite(ChatRoomMenuClick, {
 });
 
 
-// FEATURE: Chat Functionality
-// - Decode garbled messages and display beneath
-// - Send only typing indicators (not status indicators)
-// - Add custom commands
-// FEATURE: BCX Compatibility
-// - Draw icons so we can see who is using BCX
-// - Report ourselves as using BCX to others
-// - Interpret and send BCX typing indicators
-
-// Inject into ChatRoomSendChat to handle new commands.
-// R71's command handler fails on many levels (calls .trim() too aggressively, bad assumptions about word boundaries, doesn't support substring commands, etc.)
-hook(ChatRoomSendChat, function() {
-    let text = ElementValue('InputChat').trim();
-    if (text.startsWith('/**')) {
-        sendCustomEmote(text.substring('/**'.length).trim());
-    } else if (text.startsWith('/*')) {
-        sendCustomEmote(Player.Name + text.substring('/*'.length));
-    } else if (text === '/export') {
-        exportChat();
-    } else if (text === '/save') {
-        savePlayerAppearance();
-    } else if (text === '/restore') {
-        restorePlayerAppearance();
-    } else {
-        ChatRoomSendChat.delegate();
-        return;
+// FEATURE: Decode garbled messages and display beneath
+jailbreak.actors.antigarble = {
+    postChatRoomMessage: (data, prev, curr) => {
+        if (prev !== curr && typeof data === 'object' && typeof data.Sender === 'number' && typeof data.Content === 'string') {
+            let sender = ChatRoomCharacter.find(c => c.MemberNumber === data.Sender);
+            if (sender != null) {
+                let prevMsg = ChatRoomHTMLEntities(data.Type === 'Whisper' ? data.Content : SpeechStutter(sender, data.Content)); // pre-stutter the message, we want diffs across garbled due to deaf, gags, or baby talk. Not stuttering
+                if (prevMsg !== curr.Garbled) {
+                    sendHiddenMessage(`(${data.Content})`);
+                }
+            }
+        }
     }
-    ElementValue('InputChat', '');
-});
+};
 
-// Don't send dumb status updates
-// Additionally send typing indicators via BCX
-// Send: [Talk (Typing)], Ignore: [Crawl, Orgasm, Preference, Struggle, Wardrobe]
+
+// FEATURE: Custom commands support, for /**, /*, /export, /save, /restore
+jailbreak.actors.commands = {
+    preChatRoomSendChat: () => {
+        // Inject into ChatRoomSendChat to handle new commands.
+        // R71's command handler fails on many levels (calls .trim() too aggressively, bad assumptions about word boundaries, doesn't support substring commands, etc.)
+        let text = ElementValue('InputChat').trim();
+        if (text.startsWith('/**')) {
+            sendCustomEmote(text.substring('/**'.length).trim());
+        } else if (text.startsWith('/*')) {
+            sendCustomEmote(Player.Name + text.substring('/*'.length));
+        } else if (text === '/export') {
+            exportChat();
+        } else if (text === '/save') {
+            savePlayerAppearance();
+        } else if (text === '/restore') {
+            restorePlayerAppearance();
+        } else {
+            return false;;
+        }
+        ElementValue('InputChat', '');
+        return true; // cancel
+    }
+};
+
+
+// FEATURE: Send only typing indicators (not status indicators)
 hook(ChatRoomStatusUpdate, status => {
+    // Additionally send typing indicators via BCX
+    // Send: [Talk (Typing)], Ignore: [Crawl, Orgasm, Preference, Struggle, Wardrobe]
     if (status === 'Talk') {
         ChatRoomStatusUpdate.delegate(status);
         forceCheckBCXChatIndicator();
     }
 });
 
-// Borrowed from BCX and it's silly drawing methods
-function drawIcon(ctx, icon, x, y, width, height, baseSize, alpha, lineWidth, fillColor, strokeColor = 'black') {
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.translate(x, y);
-    ctx.scale(width / baseSize, height / baseSize);
-    ctx.fillStyle = fillColor;
-    ctx.strokeStyle = strokeColor;
-    ctx.lineWidth = lineWidth;
-    const p = new Path2D(icon);
-    ctx.fill(p);
-    ctx.stroke(p);
-    ctx.restore();
-};
 
+// FEATURE: BCX Compatibility
+// - Draw icons so we can see who is using BCX
+// - Report ourselves as using BCX to others
+// - Interpret and send BCX typing indicators
+jailbreak.actors.bcx = (() => {
+    let actors = {};
 
-// FEATURE: Interact with BCX typing indicator messages
-(() => {
     let lastKnownBCXStatus = null;
     let lastBCXStatusTimeoutId = null;
 
@@ -307,6 +303,67 @@ function drawIcon(ctx, icon, x, y, width, height, baseSize, alpha, lineWidth, fi
         lastBCXStatusTimeoutId = setTimeout(checkBCXChatIndicator, 3000);
     }
     lastBCXStatusTimeoutId = setTimeout(checkBCXChatIndicator, 3000);
+
+    // Borrowed from BCX and it's silly drawing methods
+    function drawIcon(ctx, icon, x, y, width, height, baseSize, alpha, lineWidth, fillColor, strokeColor = 'black') {
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.translate(x, y);
+        ctx.scale(width / baseSize, height / baseSize);
+        ctx.fillStyle = fillColor;
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = lineWidth;
+        const p = new Path2D(icon);
+        ctx.fill(p);
+        ctx.stroke(p);
+        ctx.restore();
+    };
+
+    actors.preChatRoomMessage = data => {
+        if (typeof data === 'object' && data.Type === 'Hidden' && data.Content === 'BCXMsg' && typeof data.Dictionary === 'object' && data.Sender !== Player.MemberNumber) {
+            let bcxType = data.Dictionary.type;
+            let bcxMessage = data.Dictionary.message;
+            let sender = ChatRoomCharacter.find(c => c.MemberNumber === data.Sender);
+    
+            if (bcxType === 'hello') {
+                // Respond to other players' 'hello' message
+                sendBCXHello();
+                if (sender != null) {
+                    sender.bcxEnabled = true;
+                }
+                return;
+            } else if (bcxType === 'ChatRoomStatusEvent') {
+                // Interpret the advanced typing indicator from BCX on other players
+                if (bcxMessage.Type === 'None') {
+                    ChatRoomMessage({Sender: data.Sender, Type: 'Status', Content: 'null'});
+                } else if (bcxMessage.Type === 'Typing' || bcxMessage.Type === 'Emote' || bcxMessage.Type === 'Whisper') {
+                    ChatRoomMessage({Sender: data.Sender, Type: 'Status', Content: 'Talk'});
+                }
+    
+                if (sender != null) {
+                    if (typeof sender.bcxLastTypingIndicator === 'undefined') {
+                        sender.bcxLastTypingIndicator = 'None';
+                    }
+                    if (sender.bcxLastTypingIndicator === 'Whisper') {
+                        sender.bcxLastTypingIndicator = 'None';
+                    } else {
+                        sender.bcxLastTypingIndicator = bcxMessage.Type;
+                    }
+                }
+            }
+        }
+    };
+
+    // Draw the BCX overlay on other BCX players
+    actors.postChatRoomDrawCharacterOverlay = (...args) => {
+        [character, x, y, zoom, index] = args;
+        if (typeof character.bcxEnabled !== 'undefined' && character.bcxEnabled) {
+            const ICON_BCX_CROSS = `m7.3532 5.3725 10.98 19.412-10.98 19.803h15.294l2.3528-5.4898c0.78426 1.8299 1.5685 3.6599 2.3528 5.4898h15.294l-10.98-19.803c3.6599-6.4706 7.3197-12.941 10.98-19.412h-15.294l-2.3528 5.4898-2.3528-5.4898z`;
+            drawIcon(MainCanvas, ICON_BCX_CROSS, x + 275 * zoom, y, 50 * zoom, 50 * zoom, 50, 0.7, 3, "#6e6eff")
+        }
+    };
+
+    return actors;
 })();
 
 sendBCXHello = () => sendBCXMessage('hello', {version: '☠️', request: false, effects: {}, typingIndicatorEnable: true});
@@ -320,76 +377,8 @@ sendBCXMessage = function(type, message) {
     });
 }
 
-function jailbreakInterpretBCXMessages(data) {
-    if (typeof data === 'object' && data.Type === 'Hidden' && data.Content === 'BCXMsg' && typeof data.Dictionary === 'object' && data.Sender !== Player.MemberNumber) {
-        let bcxType = data.Dictionary.type;
-        let bcxMessage = data.Dictionary.message;
-        let sender = ChatRoomCharacter.find(c => c.MemberNumber === data.Sender);
-
-        if (bcxType === 'hello') {
-            // Respond to other players' 'hello' message
-            sendBCXHello();
-            if (sender != null) {
-                sender.bcxEnabled = true;
-            }
-            return;
-        } else if (bcxType === 'ChatRoomStatusEvent') {
-            // Interpret the advanced typing indicator from BCX on other players
-            if (bcxMessage.Type === 'None') {
-                ChatRoomMessage({Sender: data.Sender, Type: 'Status', Content: 'null'});
-            } else if (bcxMessage.Type === 'Typing' || bcxMessage.Type === 'Emote' || bcxMessage.Type === 'Whisper') {
-                ChatRoomMessage({Sender: data.Sender, Type: 'Status', Content: 'Talk'});
-            }
-
-            if (sender != null) {
-                if (typeof sender.bcxLastTypingIndicator === 'undefined') {
-                    sender.bcxLastTypingIndicator = 'None';
-                }
-                if (sender.bcxLastTypingIndicator === 'Whisper') {
-                    sender.bcxLastTypingIndicator = 'None';
-                } else {
-                    sender.bcxLastTypingIndicator = bcxMessage.Type;
-                }
-            }
-        }
-    }
-}
-
-// Draw the BCX overlay on other BCX players
-hook(ChatRoomDrawCharacterOverlay, function(character, x, y, zoom, index) {
-    ChatRoomDrawCharacterOverlay.delegate(character, x, y, zoom, index);
-
-    if (typeof character.bcxEnabled !== 'undefined' && character.bcxEnabled) {
-        const ICON_BCX_CROSS = `m7.3532 5.3725 10.98 19.412-10.98 19.803h15.294l2.3528-5.4898c0.78426 1.8299 1.5685 3.6599 2.3528 5.4898h15.294l-10.98-19.803c3.6599-6.4706 7.3197-12.941 10.98-19.412h-15.294l-2.3528 5.4898-2.3528-5.4898z`;
-        drawIcon(MainCanvas, ICON_BCX_CROSS, x + 275 * zoom, y, 50 * zoom, 50 * zoom, 50, 0.7, 3, "#6e6eff")
-    }
-});
-
-function jailbreakDecodeGarbledMessages(data, prev, curr) {
-    if (prev !== curr && typeof data === 'object' && typeof data.Sender === 'number' && typeof data.Content === 'string') {
-        let sender = ChatRoomCharacter.find(c => c.MemberNumber === data.Sender);
-        if (sender != null) {
-            let prevMsg = ChatRoomHTMLEntities(data.Type === 'Whisper' ? data.Content : SpeechStutter(sender, data.Content)); // pre-stutter the message, we want diffs across garbled due to deaf, gags, or baby talk. Not stuttering
-            if (prevMsg !== curr.Garbled) {
-                sendHiddenMessage(`(${data.Content})`);
-            }
-        }
-    }
-}
-
-hook(ChatRoomMessage, function(data) {
-    jailbreakInterpretBCXMessages(data);
-
-    let prev = ChatRoomChatLog.length > 0 ? ChatRoomChatLog[ChatRoomChatLog.length - 1] : null;
-    ChatRoomMessage.delegate(data);
-    let curr = ChatRoomChatLog.length > 0 ? ChatRoomChatLog[ChatRoomChatLog.length - 1] : null;
-
-    jailbreakDecodeGarbledMessages(data, prev, curr);
-});
-
 
 // FEATURE: Save and load player appearance including restraints
-
 savePlayerAppearance = function(player) {
     if (player === undefined) {
         player = Player;
@@ -426,10 +415,12 @@ restorePlayerAppearance = function(player) {
             // v2 compression - properties are stored in an array of predictable index
             // produces about 25% smaller results than v1
             [assetName, assetGroup, color, property, difficulty] = packedAsset;
-            let asset = {Asset: AssetGet('Female3DCG', packedAsset.Group, packedAsset.Name)};
-            if (color !== -1) asset.Color = color;
+            let asset = {Asset: AssetGet('Female3DCG', assetGroup, assetName)};
+            if (color == -2) asset.Color = 'Default';
+            else if (color !== -1) asset.Color = color;
             if (property !== -1) asset.Property = property;
             if (difficulty !== -1) asset.Difficulty = difficulty;
+            appearance.push(asset);
         } else {
             // legacy v1 compression
             let asset = {Asset: AssetGet('Female3DCG', packedAsset.Group, packedAsset.Name)};
@@ -450,7 +441,7 @@ syncPlayer = function(player) {
     if (player === undefined) {
         player = Player;
     }
-    CharacterRefresh(player);
+    CharacterRefresh(player, false, false);
     ChatRoomCharacterUpdate(player);
 }
 
@@ -523,6 +514,218 @@ exportChat = function() {
         }
     }
     openAsPlainText(lines);
-}
+};
 
+
+// FEATURE: Adjust layer priority via UI for appearance (clothes) and restraints (items)
+jailbreak.actors.layerPriority = (() => {
+
+    const layerPriorityId = 'jailbreak-layer-priority';
+    const layerPriorityIcon = 'data:image/png;base64,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';
+
+    let actors = {};
+
+    // 'commit changes' button
+    let layerButton = {
+        isTargeted: () => MouseIn(160, 946, 52, 52),
+        render: () => DrawButton(160, 946, 52, 52, '', 'White', layerPriorityIcon, 'Set Render Layer')
+    };
+
+    // numerical input for the layer
+    let layerInputLastItem = null;
+    let layerInput = {
+        render: () => ElementPosition(layerPriorityId, 10 + 150/2, 940 + 50/2, 150),
+        unrender: () => ElementPosition(layerPriorityId, -1000, -1000, 0),
+
+        setDefault: (player, item) => {
+            if (!layerInputLastItem || layerInputLastItem !== item) {
+                const defaultPriority = item ? (player.AppearanceLayers.find(a => a.Asset === item.Asset) ?.Priority || 0).toString() : '';
+                ElementValue(layerPriorityId, defaultPriority);
+            }
+            layerInputLastItem = item;
+        },
+    }
+
+    function renderUI(player, item) {
+        layerButton.render();
+        layerInput.render();
+        layerInput.setDefault(player, item);        
+    }
+
+    function unrenderUI() {
+        layerInput.unrender();
+    }
+
+    ElementCreateInput(layerPriorityId, 'number', '', '20');
+    unrenderUI();
+
+    function setPriority(item) {
+        if (item) {
+            const priority = parseInt(ElementValue(layerPriorityId));
+            if (!item.Property) {
+                item.Property = {};
+            }
+            item.Property.OverridePriority = priority;
+        }
+    }
+
+    actors.preAppearanceLoad = () => unrenderUI();
+
+    actors.preAppearanceExit = () => {
+        if (CharacterAppearanceMode === '') {
+            unrenderUI();
+        }
+    };
+
+    actors.postAppearanceRun = () => {
+        // Runs the layer priority selection on the appearance screen
+        if (CharacterAppearanceMode === 'Cloth') {
+            const player = CharacterAppearanceSelection;
+            const item = player.Appearance.find(a => a.Asset.Group === player.FocusGroup);
+            renderUI(player, item);
+        } else {
+            unrenderUI();
+        }
+    };
+
+    actors.postAppearanceClick = () => {
+        const player = CharacterAppearanceSelection;
+        if (layerButton.isTargeted() && CharacterAppearanceMode === 'Cloth') {
+            const item = player.Appearance.find(a => a.Asset.Group?.Name === player.FocusGroup?.Name);
+            setPriority(item);
+            CharacterRefresh(player, false);
+        }
+    };
+
+    // Hooks for dialog menus, which are used for item interactions
+
+    actors.preDialogLeave = () => {
+        layerInputLastItem = null;
+    };
+
+    actors.preDrawItemMenu = (...args) => {
+        const [player] = args;
+        const item = InventoryGet(player, player.FocusGroup?.Name);
+        if (item && !!player.AppearanceLayers.find(a => a.Asset === item.Asset)) {
+            renderUI(player, item);
+        } else {
+            unrenderUI();
+        }
+    };
+
+    actors.preDialogDraw = () => {
+        const player = CharacterGetCurrent();
+        const item = InventoryGet(player, player.FocusGroup?.Name);
+        if (item) {
+            renderUI(player, item);
+        }
+    };
+
+    actors.preDialogClick = () => {
+        const player = CharacterGetCurrent();
+        const item = InventoryGet(player, player.FocusGroup?.Name);
+        if (item && layerButton.isTargeted()) {
+            setPriority(item);
+            CharacterRefresh(player, false, false);
+            ChatRoomCharacterItemUpdate(player, player.FocusGroup?.Name);
+            return true;
+        }
+        return false;
+    };
+
+    return actors;
+})();
+
+
+
+// Login Hooks
+
+hook(LoginResponse, function(data) {
+    LoginResponse.delegate(data);
+    if (typeof data === 'object' && data.Name != null && data.AccountName != null) {
+        jailbreakObtainAllItems();
+    }
+});
+
+
+// Chat Room Hooks
+
+hook(ChatRoomDrawCharacterOverlay, (...args) => {
+    ChatRoomDrawCharacterOverlay.delegate(...args);
+    jailbreak.actors.bcx.postChatRoomDrawCharacterOverlay(...args);
+});
+
+hook(ChatRoomMessage, data => {
+    jailbreak.actors.bcx.preChatRoomMessage(data);
+
+    let prev = ChatRoomChatLog.length > 0 ? ChatRoomChatLog[ChatRoomChatLog.length - 1] : null;
+    ChatRoomMessage.delegate(data);
+    let curr = ChatRoomChatLog.length > 0 ? ChatRoomChatLog[ChatRoomChatLog.length - 1] : null;
+
+    jailbreak.actors.antigarble.postChatRoomMessage(data, prev, curr);
+});
+
+hook(ChatRoomSendChat, () => {
+    if (jailbreak.actors.commands.preChatRoomSendChat()) {
+        return;
+    }
+    ChatRoomSendChat.delegate();
+});
+
+
+// Appearance Hooks
+
+hook(AppearanceLoad, (...args) => {
+    jailbreak.actors.layerPriority.preAppearanceLoad();
+    return AppearanceLoad.delegate(...args);
+});
+
+hook(AppearanceExit, (...args) => {        
+    jailbreak.actors.layerPriority.preAppearanceExit();
+    return AppearanceExit.delegate(...args);
+});
+
+hook(AppearanceRun, (...args) => {
+    const ret = AppearanceRun.delegate(...args);
+    jailbreak.actors.layerPriority.postAppearanceRun();
+    return ret;
+});
+
+hook(AppearanceClick, (...args) => {
+    const ret = AppearanceClick.delegate(...args);
+    jailbreak.actors.layerPriority.postAppearanceClick();
+    return ret;
+});
+
+// Dialog Hooks
+
+hook(DialogLeave, (...args) => {
+    jailbreak.actors.layerPriority.preDialogLeave();
+    return DialogLeave.delegate(...args);
+});
+
+hook(DialogLeaveItemMenu, (...args) => {
+    jailbreak.actors.layerPriority.preDialogLeave();
+    return DialogLeaveItemMenu.delegate(...args);
+});
+
+hook(DialogDrawItemMenu, (...args) => {
+    jailbreak.actors.layerPriority.preDrawItemMenu(...args);
+    return DialogDrawItemMenu.delegate(...args);
+});
+
+hook(DialogDraw, (...args) => {
+    jailbreak.actors.layerPriority.preDialogDraw();
+    return DialogDraw.delegate(...args);
+});
+
+hook(DialogClick, (...args) => {
+    if (jailbreak.actors.layerPriority.preDialogClick()) {
+        return null;
+    }
+    return DialogClick.delegate(...args);
+})
+
+
+// Finished Loading
 console.log(`Loaded Jailbreak v${jailbreak.version} for BC ${jailbreak.targetVersion} by ${jailbreak.author}`);
