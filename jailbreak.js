@@ -1,6 +1,6 @@
 jailbreak = {
     author: 'Loon8128',
-    version: '1.4',
+    version: '1.5',
     targetVersion: 'R80',
 
     reload: () => {
@@ -194,8 +194,15 @@ jailbreakCheckForMissingItems = () => {
 
 // FEATURE: Custom CSS for chat rooms
 (() => {
-    let styleElement = document.createElement('style');
-    styleElement.innerText = `
+    const customStyleId = 'jailbreak-custom-style';
+    let styleElement = document.getElementById(customStyleId);
+    if (styleElement === null) {
+        styleElement = document.createElement('style');
+        styleElement.id = customStyleId;
+        document.body.appendChild(styleElement);
+    }
+    
+    styleElement.innerHTML = `
     .ChatMessageHiddenFeedback {
         font-style: italic;
         font-size: 0.75em;
@@ -206,7 +213,6 @@ jailbreakCheckForMissingItems = () => {
         font-size: 1.0em;
     }
     `;
-    document.body.appendChild(styleElement);
 })();
 
 
