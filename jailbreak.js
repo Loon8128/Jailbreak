@@ -1,6 +1,6 @@
 jailbreak = {
     author: 'Loon8128',
-    version: '1.2',
+    version: '1.3',
     targetVersion: 'R80',
 
     reload: () => {
@@ -534,7 +534,10 @@ jailbreak.actors.layerPriority = (() => {
     // numerical input for the layer
     let layerInputLastItem = null;
     let layerInput = {
-        render: () => ElementPosition(layerPriorityId, 10 + 150/2, 940 + 50/2, 150),
+        render: () => {
+            ElementCreateInput(layerPriorityId, 'number', '', '20');
+            ElementPosition(layerPriorityId, 10 + 150/2, 940 + 50/2, 150);
+        },
         unrender: () => ElementPosition(layerPriorityId, -1000, -1000, 0),
 
         setDefault: (player, item) => {
@@ -555,9 +558,6 @@ jailbreak.actors.layerPriority = (() => {
     function unrenderUI() {
         layerInput.unrender();
     }
-
-    ElementCreateInput(layerPriorityId, 'number', '', '20');
-    unrenderUI();
 
     function setPriority(item) {
         if (item) {
