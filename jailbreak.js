@@ -1,6 +1,6 @@
 jailbreak = {
     author: 'Loon8128',
-    version: '1.5',
+    version: '1.6',
     targetVersion: 'R80',
 
     reload: () => {
@@ -264,6 +264,8 @@ jailbreak.actors.commands = {
             savePlayerAppearance();
         } else if (text === '/restore') {
             restorePlayerAppearance();
+        } else if (text === '/blind' || text == '/truesight') {
+            toggleTrueSight();
         } else {
             return false;;
         }
@@ -452,13 +454,17 @@ syncPlayer = function(player) {
 }
 
 
-sendHiddenMessage = function(feedback) {
+sendHiddenMessage = function(feedback, ignoreInExport = false) {
     // Borrowed from ChatRoomMessage
     let div = document.createElement("div");
     div.setAttribute('class', 'ChatMessage ChatMessageHiddenFeedback');
     div.setAttribute('data-time', ChatRoomCurrentTime());
     div.setAttribute('data-sender', 0);
     div.innerHTML = feedback;
+
+    if (ignoreInExport) {
+        div.setAttribute('data-ignore-in-export', 'yes');
+    }
 
     // Returns the focus on the chat box
     let Refocus = document.activeElement.id == "InputChat";
@@ -488,6 +494,11 @@ exportChat = function() {
     let escapeMarkdownEmote = text => escapeMarkdown(String(text).replace(/^\*+|\*+$/g, ''));
 
     for (let child of chat.children) {
+
+        if (child.getAttribute('data-ignore-in-export')) {
+            continue;
+        }
+
         let cls = child.attributes.class.value;
         if (cls.startsWith('ChatMessage ChatMessageChat')) {
             // Normal chat
@@ -648,6 +659,33 @@ jailbreak.actors.layerPriority = (() => {
     };
 
     return actors;
+})();
+
+
+// FEATURE: Toggle blindness with a custom command
+toggleTrueSight = (() => {
+
+    let trueSightEnabled = false;
+
+    return () => {
+        if (trueSightEnabled) {
+            // Disable
+            trueSightEnabled = false;
+            if (typeof Player.GetBlindLevel.delegate === 'function') {
+                Player.GetBlindLevel = Player.GetBlindLevel.delegate;
+            }
+            sendHiddenMessage('True Sight Disabled', true);
+        } else {
+            // Enable
+            trueSightEnabled = true;
+            if (typeof Player.GetBlindLevel.delegate !== 'function') {
+                let delegate = Player.GetBlindLevel;
+                Player.GetBlindLevel = () => 0;
+                Player.GetBlindLevel.delegate = delegate;
+            }
+            sendHiddenMessage('True Sight Enabled', true);
+        }
+    };
 })();
 
 
