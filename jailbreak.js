@@ -1,7 +1,7 @@
 jailbreak = {
     author: 'Loon8128',
-    version: '1.6',
-    targetVersion: 'R80',
+    version: '1.7',
+    targetVersion: 'R83',
 
     reload: () => {
         let n = document.createElement('script');
@@ -12,6 +12,13 @@ jailbreak = {
         document.head.appendChild(n);
     },
 
+    unload: () => {
+        for (let h of jailbreak.hooks) {
+            unhook(window[h]);
+        }
+    },
+
+    hooks: new Set(),
     actors: {}
 };
 
@@ -25,6 +32,7 @@ hook = function(f, g) {
         console.log(`Updating hook for ${f.delegate.name}`);
         f = f.delegate;
     }
+    jailbreak.hooks.add(f.name);
     window[f.name] = g;
     window[f.name].delegate = f;
 };
@@ -53,6 +61,7 @@ rewrite = function(f, patches) {
     } catch (e) {
         console.error(`Error ${e} patching ${f.name}, new source:\n${src}`);
     }
+    jailbreak.hooks.add(original.name);
     window[original.name].delegate = original;
 };
 
@@ -62,7 +71,7 @@ rewrite = function(f, patches) {
 unhook = function(f) {
     if (typeof f.delegate === 'function') {
         window[f.delegate.name] = f.delegate;
-        console.log(`Unhooking function ${f.name}`);
+        console.log(`Unhooking function ${f.delegate.name}`);
     } else {
         console.log(`Function ${f.name} is not hooked or patched`);
     }
@@ -687,6 +696,11 @@ toggleTrueSight = (() => {
         }
     };
 })();
+
+
+// FEATURE: Cleanup login screen
+hook(LoginDrawCredits, () => {});
+rewrite(LoginRun, {'DrawCharacter(LoginCharacter': 'return; //'});
 
 
 
