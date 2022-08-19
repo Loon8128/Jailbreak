@@ -702,6 +702,8 @@ toggleTrueSight = (() => {
 hook(LoginDrawCredits, () => {});
 rewrite(LoginRun, {'DrawCharacter(LoginCharacter': 'return; //'});
 
+// FEATURE: Don't log console warning message.
+rewrite(ServerConnect, {'console.log': '// console.log'});
 
 
 // Login Hooks
