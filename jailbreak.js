@@ -705,6 +705,18 @@ rewrite(LoginRun, {'DrawCharacter(LoginCharacter': 'return; //'});
 // FEATURE: Don't log console warning message.
 rewrite(ServerConnect, {'console.log': '// console.log'});
 
+// FEATURE: Cleanup main hall, disable most SP content. Enable all buttons even when restrained.
+rewrite(MainHallRun, {
+    'DrawTextWrap(TextGet("Tip" + MainHallTip)': '//',
+    'Player.CanChangeOwnClothes()': 'true',
+    'Player.CanWalk()': 'true',
+    '// Introduction, Maid & Management': 'DrawButton(1885, 265, 90, 90, "", "White", "Icons/Management.png", TextGet("ClubManagement")); return;'
+});
+rewrite(MainHallClick, {
+    'Player.CanChangeOwnClothes()': 'true',
+    'Player.CanWalk()': 'true',
+    '// Introduction, Maid & Management': 'if ((MouseX >= 1885) && (MouseX < 1975) && (MouseY >= 265) && (MouseY < 355)) MainHallWalk("Management"); return;'
+});
 
 // Login Hooks
 
