@@ -718,6 +718,28 @@ rewrite(MainHallClick, {
     '// Introduction, Maid & Management': 'if ((MouseX >= 1885) && (MouseX < 1975) && (MouseY >= 265) && (MouseY < 355)) MainHallWalk("Management"); return;'
 });
 
+// FEATURE: Reduce AssetLoadAll runtime ~2s -> ~200ms, save 90%
+hook(ModularItemGenerateLayerAllowTypes, (layer, data) => {
+    if (Array.isArray(layer.AllowModuleTypes)) {
+        layer.AllowTypes = true;
+        layer.ReverseAllowEmptyType = layer.AllowModuleTypes.some(t => t.includes('0'));
+        layer.ReverseAllowTypes = layer.AllowModuleTypes;
+    }
+});
+
+rewrite(CharacterAppearanceSortLayers, {
+    '!layer.AllowTypes || layer.AllowTypes.includes(type)': `!layer.AllowTypes || (
+        layer.ReverseAllowTypes ?
+            (type == '' ? layer.ReverseAllowEmptyType : layer.ReverseAllowTypes.some(t => type.includes(t))) :
+            layer.AllowTypes.includes(type))`
+});
+
+function profiler(fn) {
+    let tick = performance.now();
+    fn();
+    console.log(`${performance.now() - tick} ms`);
+}
+
 // Login Hooks
 
 hook(LoginResponse, function(data) {
