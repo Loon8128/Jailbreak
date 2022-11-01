@@ -1,7 +1,7 @@
 jailbreak = {
     author: 'Loon8128',
-    version: '1.7',
-    targetVersion: 'R83',
+    version: '1.9',
+    targetVersion: 'R85',
 
     reload: () => {
         let n = document.createElement('script');
@@ -247,7 +247,7 @@ jailbreak.actors.antigarble = {
         if (prev !== curr && typeof data === 'object' && typeof data.Sender === 'number' && typeof data.Content === 'string') {
             let sender = ChatRoomCharacter.find(c => c.MemberNumber === data.Sender);
             if (sender != null) {
-                let prevMsg = ChatRoomHTMLEntities(data.Type === 'Whisper' ? data.Content : SpeechStutter(sender, data.Content)); // pre-stutter the message, we want diffs across garbled due to deaf, gags, or baby talk. Not stuttering
+                let prevMsg = data.Type === 'Whisper' ? data.Chat : SpeechStutter(sender, data.Content); // pre-stutter the message, we want diffs across garbled due to deaf, gags, or baby talk. Not stuttering
                 if (prevMsg !== curr.Garbled) {
                     sendHiddenMessage(`(${data.Content})`);
                 }
