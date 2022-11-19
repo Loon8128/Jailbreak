@@ -1,7 +1,11 @@
+// Allow reentrant loading via loading the entire script.
+if (typeof jailbreak !== 'undefined') jailbreak.unload();
+
+// Replace the global mod instance
 jailbreak = {
     author: 'Loon8128',
-    version: '1.9',
-    targetVersion: 'R85',
+    version: '1.10',
+    targetVersion: 'R86',
 
     reload: () => {
         let n = document.createElement('script');
@@ -16,10 +20,11 @@ jailbreak = {
         for (let h of jailbreak.hooks) {
             unhook(window[h]);
         }
+        jailbreak.loaded = false;
     },
 
     hooks: new Set(),
-    actors: {}
+    loaded: false
 };
 
 /**
@@ -29,13 +34,17 @@ jailbreak = {
  */
 hook = function(f, g) {
     if (typeof f.delegate === 'function') {
-        console.log(`Updating hook for ${f.delegate.name}`);
+        if (!jailbreak.loaded) throw new Error(`Illegal reentrant hook during loading for ${f.delegate.name}`);
         f = f.delegate;
     }
     jailbreak.hooks.add(f.name);
     window[f.name] = g;
     window[f.name].delegate = f;
 };
+
+// Lambda capture binds `f` to the inner function, so an explicit call to .delegate is not required.
+hookHead = (f, g) => hook(f, (...args) => { g(...args); return f(...args); });
+hookTail = (f, g) => hook(f, (...args) => { const ret = f(...args); g(...args); return ret; });
 
 /**
  * Rewrites (or patches) a given function by string replacement
@@ -44,15 +53,14 @@ hook = function(f, g) {
  */
 rewrite = function(f, patches) {
     if (typeof f.delegate === 'function') {
-        let count = Object.keys(patches).length;
-        console.log(`Updating ${count} patch${count == 1 ? '' : 'es'} for ${f.delegate.name}`);
+        if (!jailbreak.loaded) throw new Error(`Illegal reentrant hook during loading for ${f.delegate.name}`);
         f = f.delegate;
     }
     let original = f;
     let src = f.toString().replace('\r', '');
     for (const [k, v] of Object.entries(patches)) {
         if (!src.includes(k)) {
-            console.warn(`Patch not applied: function ${f.name}, target ${k} -> ${v}`);
+            console.error(`Patch not applied: function ${f.name}, target ${k} -> ${v}`);
         }
         src = src.replaceAll(k, v);
     }
@@ -71,11 +79,19 @@ rewrite = function(f, patches) {
 unhook = function(f) {
     if (typeof f.delegate === 'function') {
         window[f.delegate.name] = f.delegate;
-        console.log(`Unhooking function ${f.delegate.name}`);
     } else {
-        console.log(`Function ${f.name} is not hooked or patched`);
+        console.error(`Function ${f.name} is not hooked or patched`);
     }
 };
+
+/**
+ * Executes a given function and logs the runtime in ms
+ */
+profiler = function(fn) {
+    let tick = performance.now();
+    fn();
+    console.log(`${performance.now() - tick} ms`);
+}
 
 escapeHtml = (() => {
     const HTML_ESCAPE_ENTITIES = {
@@ -111,7 +127,7 @@ hook(LoginStableItems, () => {});
 hook(LoginMaidItems, () => {});
 hook(LoginAsylumItems, () => {});
 
-jailbreakObtainAllItems = () => {
+jailbreak.obtainAllItems = () => {
 
     const SPECIAL_ITEMS = [
         {Name: "MistressGloves", Group: "Gloves"},
@@ -172,12 +188,18 @@ jailbreakObtainAllItems = () => {
     LoginValideBuyGroups();
 };
 
-jailbreakCheckForMissingItems = () => {
+jailbreak.checkForMissingItems = () => {
     // Checks items that we didn't obtain, either because they're special, or hardcoded, or we need to add exceptions to them
     let ownedAssets = new Set(Player.Inventory.map(a => a.Asset));
     return Asset.filter(a => !ownedAssets.has(a))
         .filter(a => !(a.Group.Category === 'Appearance' && a.Value === 0)); // These are 'Default' clothing items
 };
+
+hookTail(LoginResponse, data => {
+    if (typeof data === 'object' && data.Name != null && data.AccountName != null) {
+        jailbreak.obtainAllItems();
+    }
+});
 
 
 // FEATURE: Allow player to use all backgrounds, including identifying them with a 'custom' tag.
@@ -204,7 +226,7 @@ jailbreakCheckForMissingItems = () => {
 // FEATURE: Custom CSS for chat rooms
 (() => {
     const customStyleId = 'jailbreak-custom-style';
-    let styleElement = document.getElementById(customStyleId);
+    const styleElement = document.getElementById(customStyleId);
     if (styleElement === null) {
         styleElement = document.createElement('style');
         styleElement.id = customStyleId;
@@ -240,48 +262,45 @@ rewrite(ChatRoomMenuClick, {
     'Player.CanChangeOwnClothes()': 'true',
 });
 
-
 // FEATURE: Decode garbled messages and display beneath
-jailbreak.actors.antigarble = {
-    postChatRoomMessage: (data, prev, curr) => {
-        if (prev !== curr && typeof data === 'object' && typeof data.Sender === 'number' && typeof data.Content === 'string') {
-            let sender = ChatRoomCharacter.find(c => c.MemberNumber === data.Sender);
-            if (sender != null) {
-                let prevMsg = data.Type === 'Whisper' ? data.Chat : SpeechStutter(sender, data.Content); // pre-stutter the message, we want diffs across garbled due to deaf, gags, or baby talk. Not stuttering
-                if (prevMsg !== curr.Garbled) {
-                    sendHiddenMessage(`(${data.Content})`);
-                }
-            }
+// Even the minimal API is crap, and not reentrant. So we have to do this check
+ChatRoomMessageHandlers = ChatRoomMessageHandlers.filter(c => typeof c.from === 'undefined' || c.from !== 'jailbreak');
+ChatRoomMessageHandlers.push({
+    from: 'jailbreak',
+    Priority: 501, // After the chat message is saved to log, and displayed
+    Callback: (data) => {
+        const last = ChatRoomChatLog[ChatRoomChatLog.length - 1];
+        if (data.Type === 'Chat' && last !== undefined && last.Garbled !== last.Original) {
+            sendHiddenMessage(`(${data.Content})`);
         }
+        return false;
     }
-};
+});
 
 
 // FEATURE: Custom commands support, for /**, /*, /export, /save, /restore
-jailbreak.actors.commands = {
-    preChatRoomSendChat: () => {
-        // Inject into ChatRoomSendChat to handle new commands.
-        // R71's command handler fails on many levels (calls .trim() too aggressively, bad assumptions about word boundaries, doesn't support substring commands, etc.)
-        let text = ElementValue('InputChat').trim();
-        if (text.startsWith('/**')) {
-            sendCustomEmote(text.substring('/**'.length).trim());
-        } else if (text.startsWith('/*')) {
-            sendCustomEmote(Player.Name + text.substring('/*'.length));
-        } else if (text === '/export') {
-            exportChat();
-        } else if (text === '/save') {
-            savePlayerAppearance();
-        } else if (text === '/restore') {
-            restorePlayerAppearance();
-        } else if (text === '/blind' || text == '/truesight') {
-            toggleTrueSight();
-        } else {
-            return false;;
-        }
-        ElementValue('InputChat', '');
-        return true; // cancel
+hook(ChatRoomSendChat, () => {
+    // Inject into ChatRoomSendChat to handle new commands.
+    // R71's command handler fails on many levels (calls .trim() too aggressively, bad assumptions about word boundaries, doesn't support substring commands, etc.)
+    const text = ElementValue('InputChat').trim().replace('\\', '/');
+    if (text.startsWith('/**')) {
+        sendCustomEmote(text.substring('/**'.length).trim());
+    } else if (text.startsWith('/*')) {
+        sendCustomEmote(Player.Name + text.substring('/*'.length));
+    } else if (text === '/export') {
+        exportChat();
+    } else if (text === '/save') {
+        savePlayerAppearance();
+    } else if (text === '/restore') {
+        restorePlayerAppearance();
+    } else if (text === '/blind' || text == '/truesight') {
+        toggleTrueSight();
+    } else {
+        // Default behavior
+        return ChatRoomSendChat.delegate();
     }
-};
+    ElementValue('InputChat', '');
+});
 
 
 // FEATURE: Send only typing indicators (not status indicators)
@@ -299,9 +318,7 @@ hook(ChatRoomStatusUpdate, status => {
 // - Draw icons so we can see who is using BCX
 // - Report ourselves as using BCX to others
 // - Interpret and send BCX typing indicators
-jailbreak.actors.bcx = (() => {
-    let actors = {};
-
+(() => {
     let lastKnownBCXStatus = null;
     let lastBCXStatusTimeoutId = null;
 
@@ -336,7 +353,8 @@ jailbreak.actors.bcx = (() => {
         ctx.restore();
     };
 
-    actors.preChatRoomMessage = data => {
+    // As of R86, this is unused due to the chat handler changing and not having the motivation or environment to re-engineer this, or test it properly.
+    handlePossibleBCXHiddenMessage = data => {
         if (typeof data === 'object' && data.Type === 'Hidden' && data.Content === 'BCXMsg' && typeof data.Dictionary === 'object' && data.Sender !== Player.MemberNumber) {
             let bcxType = data.Dictionary.type;
             let bcxMessage = data.Dictionary.message;
@@ -372,15 +390,13 @@ jailbreak.actors.bcx = (() => {
     };
 
     // Draw the BCX overlay on other BCX players
-    actors.postChatRoomDrawCharacterOverlay = (...args) => {
+    hookTail(ChatRoomDrawCharacterOverlay, (...args) => {
         [character, x, y, zoom, index] = args;
         if (typeof character.bcxEnabled !== 'undefined' && character.bcxEnabled) {
             const ICON_BCX_CROSS = `m7.3532 5.3725 10.98 19.412-10.98 19.803h15.294l2.3528-5.4898c0.78426 1.8299 1.5685 3.6599 2.3528 5.4898h15.294l-10.98-19.803c3.6599-6.4706 7.3197-12.941 10.98-19.412h-15.294l-2.3528 5.4898-2.3528-5.4898z`;
             drawIcon(MainCanvas, ICON_BCX_CROSS, x + 275 * zoom, y, 50 * zoom, 50 * zoom, 50, 0.7, 3, "#6e6eff")
         }
-    };
-
-    return actors;
+    });
 })();
 
 sendBCXHello = () => sendBCXMessage('hello', {version: '☠️', request: false, effects: {}, typingIndicatorEnable: true});
@@ -544,12 +560,10 @@ exportChat = function() {
 
 
 // FEATURE: Adjust layer priority via UI for appearance (clothes) and restraints (items)
-jailbreak.actors.layerPriority = (() => {
+(() => {
 
     const layerPriorityId = 'jailbreak-layer-priority';
     const layerPriorityIcon = 'data:image/png;base64,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';
-
-    let actors = {};
 
     ElementCreateInput(layerPriorityId, 'number', '', '20');
 
@@ -592,6 +606,11 @@ jailbreak.actors.layerPriority = (() => {
         layerInput.unrender();
     }
 
+    function unrenderUIAndClearItem() {
+        unrenderUI();
+        layerInputLastItem = null;
+    }
+
     function setPriority(item) {
         if (item) {
             const priority = parseInt(ElementValue(layerPriorityId));
@@ -602,15 +621,12 @@ jailbreak.actors.layerPriority = (() => {
         }
     }
 
-    actors.preAppearanceLoad = () => unrenderUI();
+    hookHead(AppearanceLoad, () => unrenderUI());
+    hookHead(AppearanceExit, () => {
+        if (CharacterAppearanceMode === '') unrenderUI();
+    });
 
-    actors.preAppearanceExit = () => {
-        if (CharacterAppearanceMode === '') {
-            unrenderUI();
-        }
-    };
-
-    actors.postAppearanceRun = () => {
+    hookTail(AppearanceRun, () => {
         // Runs the layer priority selection on the appearance screen
         if (CharacterAppearanceMode === 'Cloth') {
             const player = CharacterAppearanceSelection;
@@ -619,25 +635,23 @@ jailbreak.actors.layerPriority = (() => {
         } else {
             unrenderUI();
         }
-    };
+    });
 
-    actors.postAppearanceClick = () => {
+    hookTail(AppearanceClick, () => {
         const player = CharacterAppearanceSelection;
         if (layerButton.isTargeted() && CharacterAppearanceMode === 'Cloth') {
             const item = player.Appearance.find(a => a.Asset.Group?.Name === player.FocusGroup?.Name);
             setPriority(item);
             CharacterRefresh(player, false);
         }
-    };
+    });
 
     // Hooks for dialog menus, which are used for item interactions
 
-    actors.preDialogLeave = () => {
-        layerInputLastItem = null;
-        unrenderUI();
-    };
+    hookHead(DialogLeave, () => unrenderUIAndClearItem());
+    hookHead(DialogLeaveItemMenu, () => unrenderUIAndClearItem());
 
-    actors.preDrawItemMenu = (...args) => {
+    hookHead(DialogDrawItemMenu, (...args) => {
         const [player] = args;
         const item = InventoryGet(player, player.FocusGroup?.Name);
         if (item && !!player.AppearanceLayers.find(a => a.Asset === item.Asset)) {
@@ -645,29 +659,27 @@ jailbreak.actors.layerPriority = (() => {
         } else {
             unrenderUI();
         }
-    };
+    });
 
-    actors.preDialogDraw = () => {
+    hookHead(DialogDraw, () => {
         const player = CharacterGetCurrent();
         const item = InventoryGet(player, player.FocusGroup?.Name);
         if (item) {
             renderUI(player, item);
         }
-    };
+    });
 
-    actors.preDialogClick = () => {
+    hook(DialogClick, (...args) => {
         const player = CharacterGetCurrent();
         const item = InventoryGet(player, player.FocusGroup?.Name);
         if (item && layerButton.isTargeted()) {
             setPriority(item);
             CharacterRefresh(player, false, false);
             ChatRoomCharacterItemUpdate(player, player.FocusGroup?.Name);
-            return true;
+            return null;
         }
-        return false;
-    };
-
-    return actors;
+        return DialogClick.delegate(...args);
+    })
 })();
 
 
@@ -734,100 +746,7 @@ rewrite(CharacterAppearanceSortLayers, {
             layer.AllowTypes.includes(type))`
 });
 
-function profiler(fn) {
-    let tick = performance.now();
-    fn();
-    console.log(`${performance.now() - tick} ms`);
-}
-
-// Login Hooks
-
-hook(LoginResponse, function(data) {
-    LoginResponse.delegate(data);
-    if (typeof data === 'object' && data.Name != null && data.AccountName != null) {
-        jailbreakObtainAllItems();
-    }
-});
-
-
-// Chat Room Hooks
-
-hook(ChatRoomDrawCharacterOverlay, (...args) => {
-    ChatRoomDrawCharacterOverlay.delegate(...args);
-    jailbreak.actors.bcx.postChatRoomDrawCharacterOverlay(...args);
-});
-
-hook(ChatRoomMessage, data => {
-    jailbreak.actors.bcx.preChatRoomMessage(data);
-
-    let prev = ChatRoomChatLog.length > 0 ? ChatRoomChatLog[ChatRoomChatLog.length - 1] : null;
-    ChatRoomMessage.delegate(data);
-    let curr = ChatRoomChatLog.length > 0 ? ChatRoomChatLog[ChatRoomChatLog.length - 1] : null;
-
-    jailbreak.actors.antigarble.postChatRoomMessage(data, prev, curr);
-});
-
-hook(ChatRoomSendChat, () => {
-    if (jailbreak.actors.commands.preChatRoomSendChat()) {
-        return;
-    }
-    ChatRoomSendChat.delegate();
-});
-
-
-// Appearance Hooks
-
-hook(AppearanceLoad, (...args) => {
-    jailbreak.actors.layerPriority.preAppearanceLoad();
-    return AppearanceLoad.delegate(...args);
-});
-
-hook(AppearanceExit, (...args) => {        
-    jailbreak.actors.layerPriority.preAppearanceExit();
-    return AppearanceExit.delegate(...args);
-});
-
-hook(AppearanceRun, (...args) => {
-    const ret = AppearanceRun.delegate(...args);
-    jailbreak.actors.layerPriority.postAppearanceRun();
-    return ret;
-});
-
-hook(AppearanceClick, (...args) => {
-    const ret = AppearanceClick.delegate(...args);
-    jailbreak.actors.layerPriority.postAppearanceClick();
-    return ret;
-});
-
-// Dialog Hooks
-
-hook(DialogLeave, (...args) => {
-    jailbreak.actors.layerPriority.preDialogLeave();
-    return DialogLeave.delegate(...args);
-});
-
-hook(DialogLeaveItemMenu, (...args) => {
-    jailbreak.actors.layerPriority.preDialogLeave();
-    return DialogLeaveItemMenu.delegate(...args);
-});
-
-hook(DialogDrawItemMenu, (...args) => {
-    jailbreak.actors.layerPriority.preDrawItemMenu(...args);
-    return DialogDrawItemMenu.delegate(...args);
-});
-
-hook(DialogDraw, (...args) => {
-    jailbreak.actors.layerPriority.preDialogDraw();
-    return DialogDraw.delegate(...args);
-});
-
-hook(DialogClick, (...args) => {
-    if (jailbreak.actors.layerPriority.preDialogClick()) {
-        return null;
-    }
-    return DialogClick.delegate(...args);
-})
-
 
 // Finished Loading
+jailbreak.loaded = true;
 console.log(`Loaded Jailbreak v${jailbreak.version} for BC ${jailbreak.targetVersion} by ${jailbreak.author}`);
