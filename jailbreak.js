@@ -4,7 +4,7 @@ if (typeof jailbreak !== 'undefined') jailbreak.unload();
 // Replace the global mod instance
 jailbreak = {
     author: 'Loon8128',
-    version: '1.10',
+    version: '1.11',
     targetVersion: 'R86',
 
     reload: () => {
@@ -226,7 +226,7 @@ hookTail(LoginResponse, data => {
 // FEATURE: Custom CSS for chat rooms
 (() => {
     const customStyleId = 'jailbreak-custom-style';
-    const styleElement = document.getElementById(customStyleId);
+    let styleElement = document.getElementById(customStyleId);
     if (styleElement === null) {
         styleElement = document.createElement('style');
         styleElement.id = customStyleId;
