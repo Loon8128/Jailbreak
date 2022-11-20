@@ -21,6 +21,7 @@ jailbreak = {
             unhook(window[h]);
         }
         jailbreak.loaded = false;
+        jailbreak.hooks = new Set();
     },
 
     hooks: new Set(),
@@ -729,6 +730,56 @@ rewrite(MainHallClick, {
     'Player.CanWalk()': 'true',
     '// Introduction, Maid & Management': 'if ((MouseX >= 1885) && (MouseX < 1975) && (MouseY >= 265) && (MouseY < 355)) MainHallWalk("Management"); return;'
 });
+
+// FEATURE: Allow entry into arbitrary spaces (M / F / MF / Asylum), bypass the space selection screen.
+(() => {
+
+    hook(ChatSelectLoad, () => { // Bypass the chat select screen entirely
+        chatSpaceSelect.value = Player.GenderSettings.AutoJoinSearch.Female == Player.GenderSettings.AutoJoinSearch.Male ? '' : (Player.GenderSettings.AutoJoinSearch.Female ? 'F' : 'M'); // Default null (both false) and both true to any gender
+        ChatSelectAllowedInFemaleOnly = ChatSelectAllowedInMaleOnly = true;
+        loadTargetedChatSpace();
+    });
+    rewrite(ChatSearchRun, { // Don't draw the 'search' message, as we render the space dropdown there instead
+        'DrawTextFit(TextGet(ChatSearchMessage)': '//'
+    });
+    
+    // Define a dropdown for chat space
+    const chatSpaceSelectId = 'jailbreak-chat-space-select';
+    document.getElementById(chatSpaceSelectId)?.remove();
+    const chatSpaceSelect = document.createElement('select');
+    
+    chatSpaceSelect.id = chatSpaceSelectId;
+    for (let option of [['', 'All Genders'], ['M', 'Male Only (M)'], ['F', 'Female Only (F)'], ['Asylum', 'Asylum']]) {
+        const chatSpaceOption = document.createElement('option');
+        chatSpaceOption.value = option[0];
+        chatSpaceOption.innerText = option[1];
+        chatSpaceSelect.appendChild(chatSpaceOption);
+    }
+    
+    chatSpaceSelect.addEventListener('change', () => loadTargetedChatSpace());
+    
+    document.body.appendChild(chatSpaceSelect);
+    renderUI();
+    
+    // Loading and unloading for the render element, including defining ChatSearchUnload (since BC doesn't)
+    hookTail(ChatSearchLoad, () => renderUI());
+    hookTail(ChatSearchExit, () => unrenderUI());
+    ChatSearchUnload = () => unrenderUI();
+
+    function renderUI() {
+        ElementPosition(chatSpaceSelectId, 255, 932.5, 400, 60);
+        chatSpaceSelect.style.display = '';
+    }
+
+    function unrenderUI() {
+        chatSpaceSelect.style.display = 'none';
+    }
+
+    function loadTargetedChatSpace() {
+        ChatRoomStart(chatSpaceSelect.value, '', 'MainHall', 'Room', chatSpaceSelect.value === 'Asylum' ? 'AsylumEntrance' : 'MainHall', BackgroundsTagList);
+    }
+})();
+
 
 // Finished Loading
 jailbreak.loaded = true;
