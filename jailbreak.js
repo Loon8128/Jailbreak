@@ -757,8 +757,6 @@ rewrite(MainHallClick, {
     }
 
     document.body.appendChild(chatSpaceSelect);
-
-    chatSpaceSelect.style.display = '';
     chatSpaceSelect.addEventListener('change', () => loadTargetedChatSpace());
 
     // Loading and unloading for the render element, including defining ChatSearchUnload (since BC doesn't)
@@ -778,6 +776,8 @@ rewrite(MainHallClick, {
     function loadTargetedChatSpace() {
         ChatRoomStart(chatSpaceSelect.value, '', 'MainHall', 'Room', chatSpaceSelect.value === 'Asylum' ? 'AsylumEntrance' : 'MainHall', BackgroundsTagList);
     }
+
+    unrenderUI();
 })();
 
 
