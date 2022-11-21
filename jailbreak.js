@@ -4,7 +4,7 @@ if (typeof jailbreak !== 'undefined') jailbreak.unload();
 // Replace the global mod instance
 jailbreak = {
     author: 'Loon8128',
-    version: '1.11',
+    version: '1.12',
     targetVersion: 'R86',
 
     reload: () => {
@@ -742,12 +742,12 @@ rewrite(MainHallClick, {
     rewrite(ChatSearchRun, { // Don't draw the 'search' message, as we render the space dropdown there instead
         'DrawTextFit(TextGet(ChatSearchMessage)': '//'
     });
-    
+
     // Define a dropdown for chat space
     const chatSpaceSelectId = 'jailbreak-chat-space-select';
     document.getElementById(chatSpaceSelectId)?.remove();
     const chatSpaceSelect = document.createElement('select');
-    
+
     chatSpaceSelect.id = chatSpaceSelectId;
     for (let option of [['', 'All Genders'], ['M', 'Male Only (M)'], ['F', 'Female Only (F)'], ['Asylum', 'Asylum']]) {
         const chatSpaceOption = document.createElement('option');
@@ -755,12 +755,12 @@ rewrite(MainHallClick, {
         chatSpaceOption.innerText = option[1];
         chatSpaceSelect.appendChild(chatSpaceOption);
     }
-    
-    chatSpaceSelect.addEventListener('change', () => loadTargetedChatSpace());
-    
+
     document.body.appendChild(chatSpaceSelect);
-    renderUI();
-    
+
+    chatSpaceSelect.style.display = '';
+    chatSpaceSelect.addEventListener('change', () => loadTargetedChatSpace());
+
     // Loading and unloading for the render element, including defining ChatSearchUnload (since BC doesn't)
     hookTail(ChatSearchLoad, () => renderUI());
     hookTail(ChatSearchExit, () => unrenderUI());
