@@ -749,7 +749,7 @@ rewrite(MainHallClick, {
     const chatSpaceSelect = document.createElement('select');
 
     chatSpaceSelect.id = chatSpaceSelectId;
-    for (let option of [['', 'All Genders'], ['M', 'Male Only (M)'], ['F', 'Female Only (F)'], ['Asylum', 'Asylum']]) {
+    for (let option of [['X', 'All Genders'], ['M', 'Male Only (M)'], ['', 'Female Only (F)'], ['Asylum', 'Asylum']]) {
         const chatSpaceOption = document.createElement('option');
         chatSpaceOption.value = option[0];
         chatSpaceOption.innerText = option[1];
