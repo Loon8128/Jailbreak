@@ -4,8 +4,8 @@ if (typeof jailbreak !== 'undefined') jailbreak.unload();
 // Replace the global mod instance
 jailbreak = {
     author: 'Loon8128',
-    version: '1.12',
-    targetVersion: 'R86',
+    version: '1.13',
+    targetVersion: 'R88',
 
     reload: () => {
         let n = document.createElement('script');
@@ -25,7 +25,8 @@ jailbreak = {
     },
 
     hooks: new Set(),
-    loaded: false
+    loaded: false,
+    api: {},
 };
 
 /**
@@ -92,6 +93,19 @@ profiler = function(fn) {
     let tick = performance.now();
     fn();
     console.log(`${performance.now() - tick} ms`);
+}
+
+/**
+ * Dispatches a series of hooks in the form `(args, next) => {}` sequentially.
+ */
+apiDispatch = function(hooks, args, fn) {
+    const term = fn.delegate;
+    fn = args => term(...args);
+    for (const hook of hooks) {
+        const next = fn;
+        fn = args => hook.hook(args, () => next(args));
+    }
+    return fn(args);
 }
 
 escapeHtml = (() => {
@@ -280,7 +294,10 @@ ChatRoomMessageHandlers.push({
 
 
 // FEATURE: Custom commands support, for /**, /*, /export, /save, /restore
-hook(ChatRoomSendChat, () => {
+// FEATURE: Use API for even more reentrancy
+jailbreak.api.chat_room_send_chat = [{
+    from: 'jailbreak',
+    hook: (_, next) => {
     // Inject into ChatRoomSendChat to handle new commands.
     // R71's command handler fails on many levels (calls .trim() too aggressively, bad assumptions about word boundaries, doesn't support substring commands, etc.)
     const text = ElementValue('InputChat').trim().replace('\\', '/');
@@ -298,10 +315,12 @@ hook(ChatRoomSendChat, () => {
         toggleTrueSight();
     } else {
         // Default behavior
-        return ChatRoomSendChat.delegate();
+        return next();
     }
     ElementValue('InputChat', '');
-});
+}}];
+
+hook(ChatRoomSendChat, () => apiDispatch(jailbreak.api.chat_room_send_chat, [], ChatRoomSendChat));
 
 
 // FEATURE: Send only typing indicators (not status indicators)
