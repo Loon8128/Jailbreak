@@ -271,11 +271,44 @@ hook(DialogCanTakePhotos, () => true);
 
 
 // FEATURE: Allow clicking on the appearance button in chat rooms at any time, even if it is greyed out due to restraints
+// FEATURE: Allow kneeling and standing up at any time, without triggering a minigame
 // FEATURE: Allow leaving chat rooms, independent of slowing effects or preventing effects, while still displaying yellow/red
 rewrite(ChatRoomMenuClick, {
     'ChatRoomCanLeave() && !PlayerIsSlow': 'true',
+    'Player.CanKneel()': '(Player.CanKneel() || ChatRoomCanAttemptKneel() || ChatRoomCanAttemptStand())',
     'Player.CanChangeOwnClothes()': 'true',
 });
+
+// FEATURE: Bypass the struggle minigame for applying, and removing items, entirely.
+hook(StruggleProgressStart, (char, prevItem, nextItem) => {
+    StruggleProgressChoosePrevItem = prevItem;
+    StruggleProgressChooseNextItem = nextItem;
+    StruggleProgressCurrentMinigame = '';
+    StruggleStrengthStart(char, prevItem, nextItem);
+    StruggleProgress = 100;
+    StruggleProgressCheckEnd(char);
+});
+
+rewrite(StruggleProgressCheckEnd, {
+    'AudioDialogStop();': '' // Don't stop the audio, as we struggle instantly, so we just play it after
+});
+
+// FEATURE: API for using `ItemScript`
+getScriptItem = (player) => {
+    let script = InventoryGet(player, 'ItemScript');
+    if (!script)
+    {
+        InventoryWear(player, 'Script', 'ItemScript');
+        script = InventoryGet(player, 'ItemScript');
+        script.Property = script.Property || {};
+        ChatRoomCharacterUpdate(player);
+    }
+    return script;
+}
+
+// FEATURE: Allow coloring anything, even if we couldn't normally interact due to restraints.
+// Replace `DialogCanColor` with one that checks only if the item is colorable.
+hook(DialogCanColor, (C, Item) => !Item || (Item && Item.Asset && Item.Asset.ColorableLayerCount > 0) || DialogAlwaysAllowRestraint())
 
 // FEATURE: Decode garbled messages and display beneath
 // Even the minimal API is crap, and not reentrant. So we have to do this check
@@ -699,7 +732,7 @@ exportChat = function() {
             return null;
         }
         return DialogClick.delegate(...args);
-    })
+    });
 })();
 
 
