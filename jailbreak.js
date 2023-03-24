@@ -280,19 +280,21 @@ rewrite(ChatRoomMenuClick, {
 });
 
 // FEATURE: Bypass the struggle minigame for applying, and removing items, entirely.
-hook(StruggleMinigameStart, (char, gameType, prevItem, nextItem) => {
-    StruggleProgressPrevItem = prevItem;
-    StruggleProgressNextItem = nextItem;
-    StruggleProgress = 100;
-    StruggleProgressCheckEnd(char);
-});
-
-rewrite(StruggleProgressCheckEnd, {
-    'AudioDialogStop();': '' // Don't stop the audio, as we struggle instantly, so we just play it after
-});
-
-hook(DialogStruggleStart, (char, action, prevItem, nextItem) => {
-    StruggleMinigameStart(char, "Strength", prevItem, nextItem);
+hook(DialogStruggleStart, (player, action, prevItem, nextItem) => {
+    if (nextItem && nextItem.Asset) {
+        let played = AudioPlaySoundForAsset(player, nextItem.Asset);
+        if (!played && prevItem && prevItem.Asset) {
+            AudioPlaySoundForAsset(player, prevItem.Asset)
+        }
+    }
+    DialogStruggleStop(player, 'Strength', {
+        Progress: 100,
+        PrevItem: prevItem,
+        NextItem: nextItem,
+        Skill: 0,
+        Attempts: 1,
+        Interrupted: false,
+    });
 });
 
 // FEATURE: API for using `ItemScript`
