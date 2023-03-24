@@ -4,8 +4,8 @@ if (typeof jailbreak !== 'undefined') jailbreak.unload();
 // Replace the global mod instance
 jailbreak = {
     author: 'Loon8128',
-    version: '1.13',
-    targetVersion: 'R88',
+    version: '1.14',
+    targetVersion: 'R90',
 
     reload: () => {
         let n = document.createElement('script');
@@ -280,17 +280,19 @@ rewrite(ChatRoomMenuClick, {
 });
 
 // FEATURE: Bypass the struggle minigame for applying, and removing items, entirely.
-hook(StruggleProgressStart, (char, prevItem, nextItem) => {
-    StruggleProgressChoosePrevItem = prevItem;
-    StruggleProgressChooseNextItem = nextItem;
-    StruggleProgressCurrentMinigame = '';
-    StruggleStrengthStart(char, prevItem, nextItem);
+hook(StruggleMinigameStart, (char, gameType, prevItem, nextItem) => {
+    StruggleProgressPrevItem = prevItem;
+    StruggleProgressNextItem = nextItem;
     StruggleProgress = 100;
     StruggleProgressCheckEnd(char);
 });
 
 rewrite(StruggleProgressCheckEnd, {
     'AudioDialogStop();': '' // Don't stop the audio, as we struggle instantly, so we just play it after
+});
+
+hook(DialogStruggleStart, (char, action, prevItem, nextItem) => {
+    StruggleMinigameStart(char, "Strength", prevItem, nextItem);
 });
 
 // FEATURE: API for using `ItemScript`
