@@ -299,16 +299,92 @@ hook(DialogStruggleStart, (player, action, prevItem, nextItem) => {
 
 // FEATURE: API for using `ItemScript`
 getScriptItem = (player) => {
+    if (player === undefined) player = Player;
     let script = InventoryGet(player, 'ItemScript');
     if (!script)
     {
         InventoryWear(player, 'Script', 'ItemScript');
         script = InventoryGet(player, 'ItemScript');
-        script.Property = script.Property || {};
+        script.Property ||= {};
         ChatRoomCharacterUpdate(player);
     }
     return script;
 }
+
+
+function setItemLayerPriority(item, priority) {
+    if (item) {
+        if (!item.Property) {
+            item.Property = {};
+        }
+        item.Property.OverridePriority = priority;
+    }
+}
+
+(() => {
+    const scriptItemAPI = {
+        reset: (player) => {
+            getScriptItem(player).Property = {};
+            syncPlayer(player);
+        }
+    };
+
+    jailbreak.api.item = scriptItemAPI;
+
+    function arrayRemove(arr, value) {
+        let index = arr.indexOf(value);
+        if (index > -1) {
+            arr.splice(index, 1);
+        }
+    }
+
+    for (const group of AssetGroup) {
+        scriptItemAPI[group.Name] = {
+            hide: (player) => {
+                let script = getScriptItem(player);
+                script.Property.Hide ||= [];
+                script.Property.Hide.push(group.Name);
+                syncPlayer(player);
+            },
+            unHide: (player) => {
+                let script = getScriptItem(player);
+                script.Property.UnHide ||= [];
+                script.Property.UnHide.push(group.Name);
+                syncPlayer(player);
+            },
+            reset: (player) => {
+                let script = getScriptItem(player);
+                arrayRemove(script.Property?.Hide, group.Name);
+                arrayRemove(script.Property?.UnHide, group.Name);
+                syncPlayer(player);
+            }
+        };
+    }
+})();
+
+// FEATURE: API for editing item priority
+(() => {
+    jailbreak.api.layer = {};
+
+    for (const group of AssetGroup) {
+        jailbreak.api.layer[group.Name] = {
+            set: (priority, player) => {
+                if (player === undefined) player = Player;
+                const item = InventoryGet(player, group.Name);
+                setItemLayerPriority(item, priority);
+                syncPlayer(player);
+            },
+            reset: (player) => {
+                if (player === undefined) player = Player;
+                const item = InventoryGet(player, group.Name);
+                if (item && item.Property && item.Property.OverridePriority) {
+                    delete item.Property.OverridePriority;
+                }
+                syncPlayer(player);
+            }
+        };
+    }
+})();
 
 // FEATURE: Allow coloring anything, even if we couldn't normally interact due to restraints.
 // Replace `DialogCanColor` with one that checks only if the item is colorable.
@@ -350,6 +426,22 @@ jailbreak.api.chat_room_send_chat = [{
         restorePlayerAppearance();
     } else if (text === '/blind' || text == '/truesight') {
         toggleTrueSight();
+    } else if (text.startsWith('/api')) {
+        let apiScript = text.substring('/api'.length).trim();
+        try {
+            if (apiScript.startsWith('.')) apiScript = apiScript.substring(1);
+            if (apiScript !== '') apiScript = 'jailbreak.api.' + apiScript;
+            else apiScript = 'jailbreak.api';
+            let ret = (1, eval)(apiScript);
+            if (ret !== undefined) {
+                try {
+                    ret = `[${Object.keys(ret).reduce((a, b) => a + ', ' + b)}]`;
+                } catch (e) {}
+                sendHiddenMessage(ret);
+            }
+        } catch (e) {
+            sendHiddenMessage(e);
+        }
     } else {
         // Default behavior
         return next();
@@ -528,9 +620,7 @@ restorePlayerAppearance = function(player) {
 
 // Basic sync behavior
 syncPlayer = function(player) {
-    if (player === undefined) {
-        player = Player;
-    }
+    if (player === undefined) player = Player;
     CharacterRefresh(player, false, false);
     ChatRoomCharacterUpdate(player);
 }
@@ -667,15 +757,9 @@ exportChat = function() {
         unrenderUI();
         layerInputLastItem = null;
     }
-
+    
     function setPriority(item) {
-        if (item) {
-            const priority = parseInt(ElementValue(layerPriorityId));
-            if (!item.Property) {
-                item.Property = {};
-            }
-            item.Property.OverridePriority = priority;
-        }
+        setItemLayerPriority(item, parseInt(ElementValue(layerPriorityId)));
     }
 
     hookHead(AppearanceLoad, () => unrenderUI());
