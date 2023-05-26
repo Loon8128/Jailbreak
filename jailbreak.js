@@ -4,8 +4,8 @@ if (typeof jailbreak !== 'undefined') jailbreak.unload();
 // Replace the global mod instance
 jailbreak = {
     author: 'Loon8128',
-    version: '1.14',
-    targetVersion: 'R90',
+    version: '1.15',
+    targetVersion: 'R92',
 
     reload: () => {
         let n = document.createElement('script');
@@ -919,6 +919,22 @@ rewrite(MainHallClick, {
 
     unrenderUI();
 })();
+
+
+// FEATURE: Performance improvements for `AssetLoadAll`, saves ~6s on startup
+rewrite(CharacterAppearanceIsLayerVisible, {
+    'layer.AllowTypes.includes(type)': `(layer.AllowModuleTypes ?
+        (type === '' ? layer.AllowEmptyType : layer.AllowModuleTypesFlat.some(t => t.every(t0 => type.includes(t0)))) :
+        layer.AllowTypes.includes(type))`
+});
+
+hook(ModularItemGenerateLayerAllowTypes, layer => {
+    if (Array.isArray(layer.AllowModuleTypes)) {
+        layer.AllowTypes = [''];
+        layer.AllowEmptyType = layer.AllowModuleTypes.some(t => t.includes('0'));
+        layer.AllowModuleTypesFlat = layer.AllowModuleTypes.map(t => t.match(/[a-zA-Z]+\d+/g) || []);
+    }
+});
 
 
 // Finished Loading
