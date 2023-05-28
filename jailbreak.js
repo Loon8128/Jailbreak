@@ -4,16 +4,22 @@ if (typeof jailbreak !== 'undefined') jailbreak.unload();
 // Replace the global mod instance
 jailbreak = {
     author: 'Loon8128',
-    version: '1.15',
+    version: '1.16',
+    loaderVersion: document.getElementById('jailbreak-main').getAttribute('data-loader-version'),
     targetVersion: 'R92',
 
     reload: () => {
-        let n = document.createElement('script');
-        n.setAttribute('language', 'JavaScript');
-        n.setAttribute('crossorigin', 'anonymous');
-        n.setAttribute('src', 'https://loon8128.github.io/Jailbreak/jailbreak.js?_=' + Date.now());
-        n.onload = () => n.remove();
-        document.head.appendChild(n);
+        const params = new URLSearchParams(window.location.search);
+        const url = `${params.has('jailbreak') && params.get('jailbreak') === 'local' ? 'http://localhost:8080' : 'https://loon8128.github.io/Jailbreak'}/jailbreak.js?_=${Date.now()}`;
+    
+        const script = document.createElement('script');
+        script.setAttribute('language', 'JavaScript');
+        script.setAttribute('crossorigin', 'anonymous');
+        script.setAttribute('src', url);
+        script.setAttribute('data-loader-version', 'R');
+        script.id = 'jailbreak-main';
+        script.onload = () => script.remove();
+        document.head.appendChild(script);
     },
 
     unload: () => {
@@ -321,15 +327,18 @@ function setItemLayerPriority(item, priority) {
     }
 }
 
-(() => {
-    const scriptItemAPI = {
-        reset: (player) => {
-            getScriptItem(player).Property = {};
-            syncPlayer(player);
-        }
-    };
 
-    jailbreak.api.item = scriptItemAPI;
+// FEATURE: Chat command API for editing item priority and script item properties
+hookTail(AssetLoadAll, () => {
+    Object.assign(jailbreak.api, {
+        item: {
+            reset(player) {
+                getScriptItem(player).Property = {};
+                syncPlayer(player);
+            }
+        },
+        layer: {}
+    });
 
     function arrayRemove(arr, value) {
         let index = arr.indexOf(value);
@@ -339,7 +348,7 @@ function setItemLayerPriority(item, priority) {
     }
 
     for (const group of AssetGroup) {
-        scriptItemAPI[group.Name] = {
+        jailbreak.api.item[group.Name] = {
             hide: (player) => {
                 let script = getScriptItem(player);
                 script.Property.Hide ||= [];
@@ -359,14 +368,7 @@ function setItemLayerPriority(item, priority) {
                 syncPlayer(player);
             }
         };
-    }
-})();
 
-// FEATURE: API for editing item priority
-(() => {
-    jailbreak.api.layer = {};
-
-    for (const group of AssetGroup) {
         jailbreak.api.layer[group.Name] = {
             set: (priority, player) => {
                 if (player === undefined) player = Player;
@@ -384,7 +386,7 @@ function setItemLayerPriority(item, priority) {
             }
         };
     }
-})();
+});
 
 // FEATURE: Allow coloring anything, even if we couldn't normally interact due to restraints.
 // Replace `DialogCanColor` with one that checks only if the item is colorable.
@@ -939,4 +941,4 @@ hook(ModularItemGenerateLayerAllowTypes, layer => {
 
 // Finished Loading
 jailbreak.loaded = true;
-console.log(`Loaded Jailbreak v${jailbreak.version} for BC ${jailbreak.targetVersion} by ${jailbreak.author}`);
+console.log(`Loaded Jailbreak v${jailbreak.version}-${jailbreak.loaderVersion} for BC ${jailbreak.targetVersion} by ${jailbreak.author}`);
