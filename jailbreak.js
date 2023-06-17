@@ -4,9 +4,9 @@ if (typeof jailbreak !== 'undefined') jailbreak.unload();
 // Replace the global mod instance
 jailbreak = {
     author: 'Loon8128',
-    version: '1.16',
+    version: '1.17',
     loaderVersion: document.getElementById('jailbreak-main').getAttribute('data-loader-version'),
-    targetVersion: 'R92',
+    targetVersion: 'R93',
 
     reload: () => {
         const params = new URLSearchParams(window.location.search);
@@ -220,6 +220,18 @@ hookTail(LoginResponse, data => {
     if (typeof data === 'object' && data.Name != null && data.AccountName != null) {
         jailbreak.obtainAllItems();
     }
+
+    // Fix certain settings that are expected / are broken without
+    Object.assign(Player?.GenderSettings?.AutoJoinSearch || {}, {Male: true, Female: true});
+    Object.assign(Player?.ChatSettings || {}, {
+        ColorTheme: 'Light',
+        EnterLeave: 'Smaller',
+        FontSize: 'Medium',
+        MemberNumbers: 'Always',
+        ShrinkNonDialogue: true,
+        ShowChatHelp: false,
+        DisplayTimestamps: true,
+    });
 });
 
 
@@ -293,6 +305,7 @@ hook(DialogStruggleStart, (player, action, prevItem, nextItem) => {
             AudioPlaySoundForAsset(player, prevItem.Asset)
         }
     }
+    DialogStruggleAction = action;
     DialogStruggleStop(player, 'Strength', {
         Progress: 100,
         PrevItem: prevItem,
@@ -301,6 +314,13 @@ hook(DialogStruggleStart, (player, action, prevItem, nextItem) => {
         Attempts: 1,
         Interrupted: false,
     });
+});
+
+// FEATURE: Remove the 'Tighten / Loosen' button
+// - It's useless, given we ignore any sort of restraint restriction in favor of not giving the user carpal tunnel mashing keys
+// - It annoyingly fixes expressions and doesn't clear them, because it was written by a muppet
+rewrite(DialogMenuButtonBuild, {
+    'DialogMenuButton.push("TightenLoosen");': '{}'
 });
 
 // FEATURE: API for using `ItemScript`
@@ -456,99 +476,11 @@ hook(ChatRoomSendChat, () => apiDispatch(jailbreak.api.chat_room_send_chat, [], 
 
 // FEATURE: Send only typing indicators (not status indicators)
 hook(ChatRoomStatusUpdate, status => {
-    // Additionally send typing indicators via BCX
     // Send: [Talk (Typing)], Ignore: [Crawl, Orgasm, Preference, Struggle, Wardrobe]
     if (status === 'Talk') {
         ChatRoomStatusUpdate.delegate(status);
-        forceCheckBCXChatIndicator();
     }
 });
-
-
-// FEATURE: BCX Compatibility
-// - Draw icons so we can see who is using BCX
-// - Report ourselves as using BCX to others
-// - Interpret and send BCX typing indicators
-(() => {
-    let lastKnownBCXStatus = null;
-    let lastBCXStatusTimeoutId = null;
-
-    forceCheckBCXChatIndicator = function() {
-        if (Player.Status !== lastKnownBCXStatus) {
-            clearTimeout(lastBCXStatusTimeoutId);
-            checkBCXChatIndicator();
-        }
-    }
-
-    checkBCXChatIndicator = function() {
-        if (Player.Status !== lastKnownBCXStatus) {
-            lastKnownBCXStatus = Player.Status;
-            sendBCXMessage('ChatRoomStatusEvent', {Type: lastKnownBCXStatus === null ? 'None' : 'Typing', Target: null});
-        }
-        lastBCXStatusTimeoutId = setTimeout(checkBCXChatIndicator, 3000);
-    }
-    lastBCXStatusTimeoutId = setTimeout(checkBCXChatIndicator, 3000);
-
-    // Borrowed from BCX and it's silly drawing methods
-    function drawIcon(ctx, icon, x, y, width, height, baseSize, alpha, lineWidth, fillColor, strokeColor = 'black') {
-        ctx.save();
-        ctx.globalAlpha = alpha;
-        ctx.translate(x, y);
-        ctx.scale(width / baseSize, height / baseSize);
-        ctx.fillStyle = fillColor;
-        ctx.strokeStyle = strokeColor;
-        ctx.lineWidth = lineWidth;
-        const p = new Path2D(icon);
-        ctx.fill(p);
-        ctx.stroke(p);
-        ctx.restore();
-    };
-
-    // As of R86, this is unused due to the chat handler changing and not having the motivation or environment to re-engineer this, or test it properly.
-    handlePossibleBCXHiddenMessage = data => {
-        if (typeof data === 'object' && data.Type === 'Hidden' && data.Content === 'BCXMsg' && typeof data.Dictionary === 'object' && data.Sender !== Player.MemberNumber) {
-            let bcxType = data.Dictionary.type;
-            let bcxMessage = data.Dictionary.message;
-            let sender = ChatRoomCharacter.find(c => c.MemberNumber === data.Sender);
-    
-            if (bcxType === 'hello') {
-                // Respond to other players' 'hello' message
-                sendBCXHello();
-                if (sender != null) {
-                    sender.bcxEnabled = true;
-                }
-                return;
-            } else if (bcxType === 'ChatRoomStatusEvent') {
-                // Interpret the advanced typing indicator from BCX on other players
-                if (bcxMessage.Type === 'None') {
-                    ChatRoomMessage({Sender: data.Sender, Type: 'Status', Content: 'null'});
-                } else if (bcxMessage.Type === 'Typing' || bcxMessage.Type === 'Emote' || bcxMessage.Type === 'Whisper') {
-                    ChatRoomMessage({Sender: data.Sender, Type: 'Status', Content: 'Talk'});
-                }
-    
-                if (sender != null) {
-                    if (typeof sender.bcxLastTypingIndicator === 'undefined') {
-                        sender.bcxLastTypingIndicator = 'None';
-                    }
-                    if (sender.bcxLastTypingIndicator === 'Whisper') {
-                        sender.bcxLastTypingIndicator = 'None';
-                    } else {
-                        sender.bcxLastTypingIndicator = bcxMessage.Type;
-                    }
-                }
-            }
-        }
-    };
-
-    // Draw the BCX overlay on other BCX players
-    hookTail(ChatRoomDrawCharacterOverlay, (...args) => {
-        [character, x, y, zoom, index] = args;
-        if (typeof character.bcxEnabled !== 'undefined' && character.bcxEnabled) {
-            const ICON_BCX_CROSS = `m7.3532 5.3725 10.98 19.412-10.98 19.803h15.294l2.3528-5.4898c0.78426 1.8299 1.5685 3.6599 2.3528 5.4898h15.294l-10.98-19.803c3.6599-6.4706 7.3197-12.941 10.98-19.412h-15.294l-2.3528 5.4898-2.3528-5.4898z`;
-            drawIcon(MainCanvas, ICON_BCX_CROSS, x + 275 * zoom, y, 50 * zoom, 50 * zoom, 50, 0.7, 3, "#6e6eff")
-        }
-    });
-})();
 
 sendBCXHello = () => sendBCXMessage('hello', {version: '☠️', request: false, effects: {}, typingIndicatorEnable: true});
 sendBCXGoodbye = () => sendBCXMessage('goodbye', {});
@@ -877,7 +809,7 @@ rewrite(MainHallClick, {
 (() => {
 
     hook(ChatSelectLoad, () => { // Bypass the chat select screen entirely
-        chatSpaceSelect.value = Player.GenderSettings.AutoJoinSearch.Female == Player.GenderSettings.AutoJoinSearch.Male ? '' : (Player.GenderSettings.AutoJoinSearch.Female ? 'F' : 'M'); // Default null (both false) and both true to any gender
+        chatSpaceSelect.value = Player.GenderSettings.AutoJoinSearch.Female == Player.GenderSettings.AutoJoinSearch.Male ? 'X' : (Player.GenderSettings.AutoJoinSearch.Female ? '' : 'M'); // Default null (both false) and both true to any gender
         ChatSelectAllowedInFemaleOnly = ChatSelectAllowedInMaleOnly = true;
         loadTargetedChatSpace();
     });
@@ -921,22 +853,6 @@ rewrite(MainHallClick, {
 
     unrenderUI();
 })();
-
-
-// FEATURE: Performance improvements for `AssetLoadAll`, saves ~6s on startup
-rewrite(CharacterAppearanceIsLayerVisible, {
-    'layer.AllowTypes.includes(type)': `(layer.AllowModuleTypes ?
-        (type === '' ? layer.AllowEmptyType : layer.AllowModuleTypesFlat.some(t => t.every(t0 => type.includes(t0)))) :
-        layer.AllowTypes.includes(type))`
-});
-
-hook(ModularItemGenerateLayerAllowTypes, layer => {
-    if (Array.isArray(layer.AllowModuleTypes)) {
-        layer.AllowTypes = [''];
-        layer.AllowEmptyType = layer.AllowModuleTypes.some(t => t.includes('0'));
-        layer.AllowModuleTypesFlat = layer.AllowModuleTypes.map(t => t.match(/[a-zA-Z]+\d+/g) || []);
-    }
-});
 
 
 // Finished Loading
