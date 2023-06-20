@@ -4,7 +4,7 @@ if (typeof jailbreak !== 'undefined') jailbreak.unload();
 // Replace the global mod instance
 jailbreak = {
     author: 'Loon8128',
-    version: '1.17',
+    version: '1.18',
     loaderVersion: document.getElementById('jailbreak-main').getAttribute('data-loader-version'),
     targetVersion: 'R93',
 
@@ -32,7 +32,12 @@ jailbreak = {
 
     hooks: new Set(),
     loaded: false,
+
+    // Chat-visible API via the /api command
     api: {},
+
+    // Non-chat visible API
+    hook: {},
 };
 
 /**
@@ -292,10 +297,22 @@ hook(DialogCanTakePhotos, () => true);
 // FEATURE: Allow kneeling and standing up at any time, without triggering a minigame
 // FEATURE: Allow leaving chat rooms, independent of slowing effects or preventing effects, while still displaying yellow/red
 rewrite(ChatRoomMenuClick, {
-    'ChatRoomCanLeave() && !PlayerIsSlow': 'true',
+    'case "Exit": {': 'case "Exit": { ChatRoomLeave(); CommonSetScreen("Online", "ChatSearch"); break;',
     'Player.CanKneel()': '(Player.CanKneel() || ChatRoomCanAttemptKneel() || ChatRoomCanAttemptStand())',
     'Player.CanChangeOwnClothes()': 'true',
 });
+
+// FEATURE: Allow interacting with inventory, even when it would be blocked
+rewrite(DialogDraw, { 
+    'DialogDraw() {': 'DialogDraw() { jailbreak.hook.dialog_draw();',
+    '!Player.CanInteract()': 'false'
+});
+
+rewrite(DialogClick, {
+    'DialogClick() {': 'DialogClick() { { const ret = jailbreak.hook.dialog_click(); if (ret) return ret[0]; }',
+    'Player.CanInteract() && ': ''
+});
+
 
 // FEATURE: Bypass the struggle minigame for applying, and removing items, entirely.
 hook(DialogStruggleStart, (player, action, prevItem, nextItem) => {
@@ -430,7 +447,7 @@ ChatRoomMessageHandlers.push({
 
 // FEATURE: Custom commands support, for /**, /*, /export, /save, /restore
 // FEATURE: Use API for even more reentrancy
-jailbreak.api.chat_room_send_chat = [{
+jailbreak.hook.chat_room_send_chat = [{
     from: 'jailbreak',
     hook: (_, next) => {
     // Inject into ChatRoomSendChat to handle new commands.
@@ -471,7 +488,7 @@ jailbreak.api.chat_room_send_chat = [{
     ElementValue('InputChat', '');
 }}];
 
-hook(ChatRoomSendChat, () => apiDispatch(jailbreak.api.chat_room_send_chat, [], ChatRoomSendChat));
+hook(ChatRoomSendChat, () => apiDispatch(jailbreak.hook.chat_room_send_chat, [], ChatRoomSendChat));
 
 
 // FEATURE: Send only typing indicators (not status indicators)
@@ -736,25 +753,24 @@ exportChat = function() {
         }
     });
 
-    hookHead(DialogDraw, () => {
+    jailbreak.hook.dialog_draw = () => {
         const player = CharacterGetCurrent();
         const item = InventoryGet(player, player.FocusGroup?.Name);
         if (item) {
             renderUI(player, item);
         }
-    });
+    };
 
-    hook(DialogClick, (...args) => {
+    jailbreak.hook.dialog_click = () => {
         const player = CharacterGetCurrent();
         const item = InventoryGet(player, player.FocusGroup?.Name);
         if (item && layerButton.isTargeted()) {
             setPriority(item);
             CharacterRefresh(player, false, false);
             ChatRoomCharacterItemUpdate(player, player.FocusGroup?.Name);
-            return null;
+            return [null];
         }
-        return DialogClick.delegate(...args);
-    });
+    };
 })();
 
 
