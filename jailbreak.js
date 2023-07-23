@@ -303,14 +303,30 @@ rewrite(ChatRoomMenuClick, {
 });
 
 // FEATURE: Allow interacting with inventory, even when it would be blocked
+// FEATURE: When interacting with the player, bypass blocked groups
 rewrite(DialogDraw, { 
     'DialogDraw() {': 'DialogDraw() { jailbreak.hook.dialog_draw();',
-    '!Player.CanInteract()': 'false'
+    '!Player.CanInteract()': 'false',
+    'InventoryGroupIsBlocked(C)': '(C != Player && InventoryGroupIsBlocked(C))',
 });
 
 rewrite(DialogClick, {
     'DialogClick() {': 'DialogClick() { { const ret = jailbreak.hook.dialog_click(); if (ret) return ret[0]; }',
-    'Player.CanInteract() && ': ''
+    'Player.CanInteract() && ': '',
+    'InventoryGroupIsBlocked(C, null, true)': '(C != Player && InventoryGroupIsBlocked(C, null, true))'
+});
+
+// FEATURE: Remove the 'Tighten / Loosen' button
+// - It's useless, given we ignore any sort of restraint restriction in favor of not giving the user carpal tunnel mashing keys
+// - It annoyingly fixes expressions and doesn't clear them, because it was written by a muppet
+rewrite(DialogMenuButtonBuild, {
+    'DialogMenuButton.push("TightenLoosen");': '{}',
+    'Player.CanInteract()': 'true',
+    'InventoryGroupIsBlocked(C)': '(C != Player && InventoryGroupIsBlocked(C))',
+});
+
+rewrite(DialogItemClick, {
+    'InventoryGroupIsBlocked(C, null, true)': '(C != Player && InventoryGroupIsBlocked(C, null, true))'
 });
 
 
