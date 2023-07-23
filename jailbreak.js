@@ -349,13 +349,6 @@ hook(DialogStruggleStart, (player, action, prevItem, nextItem) => {
     });
 });
 
-// FEATURE: Remove the 'Tighten / Loosen' button
-// - It's useless, given we ignore any sort of restraint restriction in favor of not giving the user carpal tunnel mashing keys
-// - It annoyingly fixes expressions and doesn't clear them, because it was written by a muppet
-rewrite(DialogMenuButtonBuild, {
-    'DialogMenuButton.push("TightenLoosen");': '{}'
-});
-
 // FEATURE: API for using `ItemScript`
 getScriptItem = (player) => {
     if (player === undefined) player = Player;
