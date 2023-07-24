@@ -485,10 +485,10 @@ jailbreak.hook.chat_room_send_chat = [{
                 try {
                     ret = `[${Object.keys(ret).reduce((a, b) => a + ', ' + b)}]`;
                 } catch (e) {}
-                sendHiddenMessage(ret);
+                sendHiddenMessage(ret, true);
             }
         } catch (e) {
-            sendHiddenMessage(e);
+            sendHiddenMessage(e, true);
         }
     } else {
         // Default behavior
