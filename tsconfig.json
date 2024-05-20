@@ -1,0 +1,22 @@
+{
+  "files": [
+    "src/types.d.ts",
+    "src/load-pre.ts",
+    "src/feature/inventory.ts",
+    "src/feature/backgrounds.ts",
+    "src/feature/chat.ts",
+    "src/feature/layer-priority.ts",
+    "src/feature/misc.ts",
+    "src/load-post.ts"
+  ],
+  "compilerOptions": {
+    "outFile": "jailbreak.js",
+    "target": "es2022",
+    "module": "None",
+
+    "removeComments": true,
+    "forceConsistentCasingInFileNames": true,
+    "strictFunctionTypes": true,
+    "allowUnreachableCode": true
+  }
+}

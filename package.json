@@ -1,8 +1,10 @@
 {
   "scripts": {
+    "build": "tsc",
     "local": "http-server --cors"
   },
   "devDependencies": {
+    "typescript": "^5.4.5",
     "http-server": "^14.1.1"
   }
 }

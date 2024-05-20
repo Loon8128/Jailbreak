@@ -2,11 +2,13 @@
 !*/
 !/.gitignore
 
+!/src/**/*.ts
 !/jailbreak_loader.js
 !/jailbreak.js
 
 !/package-lock.json
 !/package.json
+!/tsconfig.json
 
 !/LICENSE
 !/README.md
