@@ -4,9 +4,9 @@ if (typeof jailbreak !== 'undefined') jailbreak.unload();
 // Replace the global mod instance
 jailbreak = {
     author: 'Loon8128',
-    version: '1.18',
+    version: '1.19',
     loaderVersion: document.getElementById('jailbreak-main').getAttribute('data-loader-version'),
-    targetVersion: 'R93',
+    targetVersion: 'R104',
 
     reload: () => {
         const params = new URLSearchParams(window.location.search);
@@ -154,8 +154,7 @@ hook(LoginMaidItems, () => {});
 hook(LoginAsylumItems, () => {});
 
 jailbreak.obtainAllItems = () => {
-
-    const SPECIAL_ITEMS = [
+    const ITEMS = [
         {Name: "MistressGloves", Group: "Gloves"},
         {Name: "MistressBoots", Group: "Shoes"},
         {Name: "MistressTop", Group: "Cloth"},
@@ -206,11 +205,11 @@ jailbreak.obtainAllItems = () => {
         {Name: "SpankingToys", Group: "ItemHands"},
     ];
 
-    let items = Asset.filter(asset => asset.Value > 0).map(asset => ({Name: asset.Name, Group: asset.Group.Name}));
-    SPECIAL_ITEMS.forEach(asset => items.push(asset));
-    ShopSellExceptions.forEach(asset => items.push(asset));
+    Asset.filter(asset => asset.Group != null && asset.Value > 0) // This comes from 'ShopCheckBoughtEverything()'
+        .map(asset => ({Name: asset.Name, Group: asset.Group.Name}))
+        .forEach(a => ITEMS.push(a));
 
-    InventoryAddMany(Player, items);
+    InventoryAddMany(Player, ITEMS);
     LoginValideBuyGroups();
 };
 
@@ -296,11 +295,10 @@ hook(DialogCanTakePhotos, () => true);
 // FEATURE: Allow clicking on the appearance button in chat rooms at any time, even if it is greyed out due to restraints
 // FEATURE: Allow kneeling and standing up at any time, without triggering a minigame
 // FEATURE: Allow leaving chat rooms, independent of slowing effects or preventing effects, while still displaying yellow/red
-rewrite(ChatRoomMenuClick, {
-    'case "Exit": {': 'case "Exit": { ChatRoomLeave(); CommonSetScreen("Online", "ChatSearch"); break;',
-    'Player.CanKneel()': '(Player.CanKneel() || ChatRoomCanAttemptKneel() || ChatRoomCanAttemptStand())',
-    'Player.CanChangeOwnClothes()': 'true',
-});
+rewrite(ChatRoomOpenWardrobeScreen, { 'Player.CanChangeOwnClothes()': 'true' }); // Always allow wardrobe access
+rewrite(ChatRoomToggleKneel, { 'switch (status)': 'switch (PoseChangeStatus.ALWAYS)' }); // Avoid the kneeling mini-game
+rewrite(ChatRoomAttemptLeave, { 'Player.IsSlow()': 'false' }); // Avoid the slow-leaving delay
+hook(ChatRoomCanLeave, () => true); // Allow leaving at any time - may break other things, but fuck it
 
 // FEATURE: Allow interacting with inventory, even when it would be blocked
 // FEATURE: When interacting with the player, bypass blocked groups
@@ -818,66 +816,23 @@ rewrite(LoginRun, {'DrawCharacter(LoginCharacter': 'return; //'});
 rewrite(ServerConnect, {'console.log': '// console.log'});
 
 // FEATURE: Cleanup main hall, disable most SP content. Enable all buttons even when restrained.
-rewrite(MainHallRun, {
-    'DrawTextWrap(TextGet("Tip" + MainHallTip)': '//',
+
+// To avoid duplication and complex patches, rewrite `MainHallAllow` to enable-disable buttons at will
+// Normally this is used for owner rules, which we don't give a fuck about, so we can repurpose it for disabling most if not all rules
+// BC uses character keys to indicate different rooms:
+// B = Private Room, 2 = Photos
+hook(MainHallAllow, key => key === 'B' /* Private Room */)
+
+// We still need to rewrite permission checks to ensure they are always allowed
+rewrite(MainHallDraw, {
+    'DrawTextWrap(TextGet("Tip" + MainHallTip)': '//', // Don't draw tips
     'Player.CanChangeOwnClothes()': 'true',
     'Player.CanWalk()': 'true',
-    '// Introduction, Maid & Management': 'DrawButton(1885, 265, 90, 90, "", "White", "Icons/Management.png", TextGet("ClubManagement")); return;'
 });
 rewrite(MainHallClick, {
     'Player.CanChangeOwnClothes()': 'true',
     'Player.CanWalk()': 'true',
-    '// Introduction, Maid & Management': 'if ((MouseX >= 1885) && (MouseX < 1975) && (MouseY >= 265) && (MouseY < 355)) MainHallWalk("Management"); return;'
 });
-
-// FEATURE: Allow entry into arbitrary spaces (M / F / MF / Asylum), bypass the space selection screen.
-(() => {
-
-    hook(ChatSelectLoad, () => { // Bypass the chat select screen entirely
-        chatSpaceSelect.value = Player.GenderSettings.AutoJoinSearch.Female == Player.GenderSettings.AutoJoinSearch.Male ? 'X' : (Player.GenderSettings.AutoJoinSearch.Female ? '' : 'M'); // Default null (both false) and both true to any gender
-        ChatSelectAllowedInFemaleOnly = ChatSelectAllowedInMaleOnly = true;
-        loadTargetedChatSpace();
-    });
-    rewrite(ChatSearchRun, { // Don't draw the 'search' message, as we render the space dropdown there instead
-        'DrawTextFit(TextGet(ChatSearchMessage)': '//'
-    });
-
-    // Define a dropdown for chat space
-    const chatSpaceSelectId = 'jailbreak-chat-space-select';
-    document.getElementById(chatSpaceSelectId)?.remove();
-    const chatSpaceSelect = document.createElement('select');
-
-    chatSpaceSelect.id = chatSpaceSelectId;
-    for (let option of [['X', 'All Genders'], ['M', 'Male Only (M)'], ['', 'Female Only (F)'], ['Asylum', 'Asylum']]) {
-        const chatSpaceOption = document.createElement('option');
-        chatSpaceOption.value = option[0];
-        chatSpaceOption.innerText = option[1];
-        chatSpaceSelect.appendChild(chatSpaceOption);
-    }
-
-    document.body.appendChild(chatSpaceSelect);
-    chatSpaceSelect.addEventListener('change', () => loadTargetedChatSpace());
-
-    // Loading and unloading for the render element, including defining ChatSearchUnload (since BC doesn't)
-    hookTail(ChatSearchLoad, () => renderUI());
-    hookTail(ChatSearchExit, () => unrenderUI());
-    ChatSearchUnload = () => unrenderUI();
-
-    function renderUI() {
-        ElementPosition(chatSpaceSelectId, 255, 932.5, 400, 60);
-        chatSpaceSelect.style.display = '';
-    }
-
-    function unrenderUI() {
-        chatSpaceSelect.style.display = 'none';
-    }
-
-    function loadTargetedChatSpace() {
-        ChatRoomStart(chatSpaceSelect.value, '', 'MainHall', 'Room', chatSpaceSelect.value === 'Asylum' ? 'AsylumEntrance' : 'MainHall', BackgroundsTagList);
-    }
-
-    unrenderUI();
-})();
 
 
 // Finished Loading
