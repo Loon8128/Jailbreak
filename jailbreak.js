@@ -1,9 +1,9 @@
 if (typeof jailbreak !== 'undefined')
     jailbreak.unload();
 jailbreak = {
-    version: '1.19',
+    version: '1.20',
     loaderVersion: document.getElementById('jailbreak-main').getAttribute('data-loader-version'),
-    targetVersion: 'R104',
+    targetVersion: 'R106',
     reload: () => {
         const params = new URLSearchParams(window.location.search);
         const url = `${params.has('jailbreak') && params.get('jailbreak') === 'local' ? 'http://localhost:8080' : 'https://loon8128.github.io/Jailbreak'}/jailbreak.js?_=${Date.now()}`;
@@ -298,6 +298,10 @@ hookTail(LoginResponse, data => {
         if (compressed === undefined || compressed === null || compressed === '')
             return;
         const packed = JSON.parse(LZString.decompressFromBase64(compressed));
+        if (!packed) {
+            sendHiddenMessage('Error parsing packed appearance?');
+            return;
+        }
         const appearance = [];
         for (const packedAsset of packed) {
             if (Array.isArray(packedAsset)) {
@@ -557,5 +561,6 @@ hook(DialogStruggleStart, (player, action, prevItem, nextItem) => {
     });
 });
 hook(DialogCanColor, (C, Item) => !Item || (Item && Item.Asset && Item.Asset.ColorableLayerCount > 0) || DialogAlwaysAllowRestraint());
+hook(LoginValidCollar, () => { });
 jailbreak.loaded = true;
 console.log(`Loaded Jailbreak v${jailbreak.version}-${jailbreak.loaderVersion} for BC ${jailbreak.targetVersion}`);

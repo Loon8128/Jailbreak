@@ -3,9 +3,9 @@ if (typeof jailbreak !== 'undefined') jailbreak.unload();
 
 // Replace the global mod instance
 jailbreak = {
-    version: '1.19',
+    version: '1.20',
     loaderVersion: document.getElementById('jailbreak-main').getAttribute('data-loader-version'),
-    targetVersion: 'R104',
+    targetVersion: 'R106',
 
     reload: () => {
         const params: URLSearchParams = new URLSearchParams(window.location.search);

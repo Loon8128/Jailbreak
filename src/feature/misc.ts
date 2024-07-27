@@ -86,3 +86,6 @@ hook(DialogStruggleStart, (player, action, prevItem, nextItem) => {
 // Allow coloring anything, even if we couldn't normally interact due to restraints.
 // Replace `DialogCanColor` with one that checks only if the item is colorable.
 hook(DialogCanColor, (C, Item) => !Item || (Item && Item.Asset && Item.Asset.ColorableLayerCount > 0) || DialogAlwaysAllowRestraint())
+
+// Don't overwrite / force a collar on the player
+hook(LoginValidCollar, () => {});

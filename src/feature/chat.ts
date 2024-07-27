@@ -129,7 +129,6 @@
 
         const packed = [];
         for (const asset of player.Appearance) {
-
             packed.push([
                 asset.Asset.Name,
                 asset.Asset.Group.Name,
@@ -152,6 +151,10 @@
         if (compressed === undefined || compressed === null || compressed === '') return; // Canceled prompt
 
         const packed = JSON.parse(LZString.decompressFromBase64(compressed));
+        if (!packed) {
+            sendHiddenMessage('Error parsing packed appearance?');
+            return;
+        }
         const appearance: typeof Player.Appearance = [];
         for (const packedAsset of packed) {
             if (Array.isArray(packedAsset)) {

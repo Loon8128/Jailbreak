@@ -97,6 +97,7 @@ declare global {
     function LoginValideBuyGroups(): void
     function LoginDrawCredits(): void
     function LoginRun(): void
+    function LoginValidCollar(): void
 
     function ServerConnect(): void
     function ServerSend(key: string, data: {[_: string]: any}): void
